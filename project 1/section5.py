@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import random
 
 
 class domain:
@@ -199,24 +200,25 @@ class Q_learning:
         state = self.domain.get_current_state()
         for i in range(T):
             action = agent.chose_action(state)
-            reward = self.domain.reward(state, action)
-            state = self.domain.dynamic(state, action)
+            next_state = self.domain.dynamic(state, action)
+            reward = self.domain.rewards[next_state]
+            state = next_state
             self.N[state[0], state[1]] += 1
             self.trajectory.append((state, action, reward))
 
     def compute_Q(self):
-        for k in range(len(self.trajectory)-1):
+        for k in range(len(self.trajectory) - 1):
             Q_prev = self.Q.copy()
             gamma = self.domain.gamma
             state = self.trajectory[k][0]
             action = self.actions.index(self.trajectory[k][1])
-            next_state = self.trajectory[k+1][0]
+            next_state = self.trajectory[k + 1][0]
             r = self.trajectory[k][2]
             next_q = r + gamma * max(Q_prev[next_state[0], next_state[1], 0],
-                                Q_prev[next_state[0], next_state[1], 1],
-                                Q_prev[next_state[0], next_state[1], 2],
-                                Q_prev[next_state[0], next_state[1], 3])
-            self.Q[state[0], state[1], action] = (1-self.alpha) * Q[state[0], state[1], action] + self.alpha * next_q
+                                     Q_prev[next_state[0], next_state[1], 1],
+                                     Q_prev[next_state[0], next_state[1], 2],
+                                     Q_prev[next_state[0], next_state[1], 3])
+            self.Q[state[0], state[1], action] = (1 - self.alpha) * Q[state[0], state[1], action] + self.alpha * next_q
         return Q
 
     def compute_policy(self, Q):
@@ -232,8 +234,8 @@ class Q_learning:
             return self.actions[int(self.policy_grid[x, y])]
         return -1
 
-    def online(self, T=0):
-        transitions = 10  # 1000
+    def online_first(self, T=100):
+        transitions = T  # 1000
         episodes = 1  # 100
 
         for i in range(episodes):
@@ -241,10 +243,10 @@ class Q_learning:
             for j in range(transitions):
                 rand = np.random.uniform()
                 if rand < self.epsilon:
-                    action = self.policy_grid[state]  # Est-ce que policy grid renvoit bien un num?
+                    action_index = self.policy_grid[state]  # Est-ce que policy grid renvoit bien un num?
                 else:
-                    action = np.random.randint(3)
-                next_state = self.domain.dynamic(state, action)
+                    action_index = np.random.randint(3)
+                next_state = self.domain.dynamic(state, self.actions[action_index])
 
                 Q_prev = self.Q.copy()
                 # r = self.trajectory[k][2] # pas sûr de celui ci
@@ -254,11 +256,92 @@ class Q_learning:
                                               Q_prev[next_state[0], next_state[1], 1],
                                               Q_prev[next_state[0], next_state[1], 2],
                                               Q_prev[next_state[0], next_state[1], 3])
-                self.Q[state[0], state[1], action] = (1 - self.alpha) * Q[state[0], state[1], action] + self.alpha * next_q
+                self.Q[state[0], state[1], action_index] = (1 - self.alpha) * Q[
+                    state[0], state[1], action_index] + self.alpha * next_q
                 state = next_state
                 self.compute_policy(Q)
 
         return Q
+
+    def online_second(self, T=100):
+        transitions = T  # 1000
+        episodes = 1  # 100
+        alpha = self.alpha
+        for i in range(episodes):
+            state = self.init_pos
+            for j in range(transitions):
+                rand = np.random.uniform()
+                if rand < self.epsilon:
+                    action_index = self.policy_grid[state]  # Est-ce que policy grid renvoit bien un num?
+                else:
+                    action_index = np.random.randint(3)
+                next_state = self.domain.dynamic(state, self.actions[action_index])
+
+                Q_prev = self.Q.copy()
+                r = self.domain.rewards[next_state]
+
+                next_q = r + self.gamma * max(Q_prev[next_state[0], next_state[1], 0],
+                                              Q_prev[next_state[0], next_state[1], 1],
+                                              Q_prev[next_state[0], next_state[1], 2],
+                                              Q_prev[next_state[0], next_state[1], 3])
+                self.Q[state[0], state[1], action_index] = (1 - self.alpha) * Q[
+                    state[0], state[1], action_index] + alpha * next_q
+                state = next_state
+                self.compute_policy(Q)
+                alpha = alpha * 0.8
+
+        return Q
+
+    def online_third(self, T=100):
+        buff = replay()
+        transitions = T  # 1000
+        episodes = 1  # 100
+
+        for i in range(episodes):
+            state = self.init_pos
+            for j in range(transitions):
+                rand = np.random.uniform()
+                if rand < self.epsilon:
+                    action_index = self.policy_grid[state]  # Est-ce que policy grid renvoit bien un num?
+                else:
+                    action_index = np.random.randint(3)
+                next_state = self.domain.dynamic(state, self.actions[action_index])
+
+                reward = self.domain.rewards[next_state]
+                buff.add(state, action_index, reward, next_state)
+                replay_trans = buff.draw()
+
+                if replay_trans:
+                    for k in range(len(replay_trans)):
+                        Q_prev = self.Q.copy()
+                        s = replay_trans[k][0]
+                        a = replay_trans[k][1]
+                        r = replay_trans[k][2]
+                        n_s = replay_trans[k][3]
+                        next_q = r + self.gamma * max(Q_prev[n_s[0], n_s[1], 0],
+                                                      Q_prev[n_s[0], n_s[1], 1],
+                                                      Q_prev[n_s[0], n_s[1], 2],
+                                                      Q_prev[n_s[0], n_s[1], 3])
+                        self.Q[s[0], s[1], a] = (1 - self.alpha) * Q[
+                            s[0], s[1], a] + self.alpha * next_q
+                    self.compute_policy(Q)
+
+        return Q
+
+
+class replay:
+    def __init__(self):
+        self.size = 0
+        self.memory = []
+
+    def add(self, state, action, reward, next_state):
+        self.size += 1
+        self.memory.append((state, action, reward, next_state))
+
+    def draw(self, N=10):
+        if self.size >= 10:
+            return random.choices(self.memory, k=N)
+        return None
 
 
 def heatmap_visit(mdp):
