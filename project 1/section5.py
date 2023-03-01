@@ -1,3 +1,4 @@
+import numpy
 import numpy as np
 import matplotlib.pyplot as plt
 import random
@@ -218,8 +219,8 @@ class Q_learning:
                                      Q_prev[next_state[0], next_state[1], 1],
                                      Q_prev[next_state[0], next_state[1], 2],
                                      Q_prev[next_state[0], next_state[1], 3])
-            self.Q[state[0], state[1], action] = (1 - self.alpha) * Q[state[0], state[1], action] + self.alpha * next_q
-        return Q
+            self.Q[state[0], state[1], action] = (1 - self.alpha) * self.Q[state[0], state[1], action] + self.alpha * next_q
+        return self.Q
 
     def compute_policy(self, Q):
         if self.policy_grid is None:
@@ -241,7 +242,7 @@ class Q_learning:
             for i in range(5):
                 for j in range(5):
                     state = (i, j)
-                    action = self.policy_grid(state) # Changé ici pour qu'il suive l'opti grid
+                    action = self.policy_grid[i, j]
                     next_state = self.domain.det_dynamic(state, action)
                     if self.domain.type == 'det':
                         J[i, j] = self.domain.rewards[next_state[0], next_state[1]] + self.gamma * J_prev[
@@ -428,6 +429,7 @@ if __name__ == "__main__":
     d = domain('stocha')
     a = agent_rand()
     q_model = Q_learning(d)
-    q_model.generate_traj(a, 10 ** 7)
+    q_model.generate_traj(a, 10 ** 4)
     Q = q_model.compute_Q()
-    q_model.compute_policy(q_model)
+    q_model.compute_policy(Q)
+    q_model.j_opti_grid(100)
