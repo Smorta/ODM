@@ -255,8 +255,10 @@ class Q_learning:
     def online_first(self, T=100):
         transitions = T  # 1000
         episodes = 1  # 100
+        normInf = []
 
-        mdp = mdp(self.domain)
+        mdp = MDP(self.domain)
+        mdp.compute_best_policy()
         op_a = optimal_agent(mdp)
 
         for i in range(episodes):
@@ -284,7 +286,7 @@ class Q_learning:
             # CALCULATE || JNQ - JN ||_inf
             J_NQ = self.j_opti_grid(100) # Comment choisir N?
             J_N = self.domain.function_j(op_a, 100)
-            normInf[i] = np.max(abs(J_NQ - J_N))
+            normInf.append(np.max(abs(J_NQ - J_N)))
 
         plt.figure()
         plt.plot(range(episodes), normInf)
@@ -294,8 +296,10 @@ class Q_learning:
         transitions = T  # 1000
         episodes = 1  # 100
         alpha = self.alpha
+        normInf = []
 
-        mdp = mdp(self.domain)
+        mdp = MDP(self.domain)
+        mdp.compute_best_policy()
         op_a = optimal_agent(mdp)
 
         for i in range(episodes):
@@ -324,7 +328,7 @@ class Q_learning:
             # CALCULATE || JNQ - JN ||_inf
             J_NQ = self.j_opti_grid(100) # Comment choisir N?
             J_N = self.domain.function_j(op_a, 100)
-            normInf[i] = np.max(abs(J_NQ - J_N))
+            normInf.append(np.max(abs(J_NQ - J_N)))
 
         plt.figure()
         plt.plot(range(episodes), normInf)
@@ -334,8 +338,10 @@ class Q_learning:
         buff = replay()
         transitions = T  # 1000
         episodes = 1  # 100
+        normInf = []
 
-        mdp = mdp(self.domain)
+        mdp = MDP(self.domain)
+        mdp.compute_best_policy()
         op_a = optimal_agent(mdp)
 
         for i in range(episodes):
@@ -370,7 +376,7 @@ class Q_learning:
             # CALCULATE || JNQ - JN ||_inf
             J_NQ = self.j_opti_grid(100) # Comment choisir N?
             J_N = self.domain.function_j(op_a, 100)
-            normInf[i] = np.max(abs(J_NQ - J_N))
+            normInf.append(np.max(abs(J_NQ - J_N)))
 
         plt.figure()
         plt.plot(range(episodes), normInf)
