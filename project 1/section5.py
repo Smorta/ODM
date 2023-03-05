@@ -228,7 +228,8 @@ class Q_learning:
             self.policy_grid = np.zeros((5, 5))
         for i in range(5):
             for j in range(5):
-                self.policy_grid[i, j] = np.argmax(Q[i, j])
+                self.policy_grid[i, j] = np.argmax(Q[i, j]) # ERREUR ICI Q A 3 DIMENSIONS PAS 2
+                t = 1
 
     def get_best_action(self, state):
         if self.policy_grid is not None:
@@ -237,13 +238,14 @@ class Q_learning:
         return -1
 
     def j_opti_grid(self, N):
+        pg = self.policy_grid
         J = np.zeros((5, 5))
         for n in range(N):
             J_prev = J.copy()
             for i in range(5):
                 for j in range(5):
                     state = (i, j)
-                    action = self.actions[int(self.policy_grid[i, j])]
+                    action = self.actions[int(pg[i, j])]
                     next_state = self.domain.det_dynamic(state, action)
                     if self.domain.type == 'det':
                         J[i, j] = self.domain.rewards[next_state[0], next_state[1]] + self.gamma * J_prev[
@@ -261,7 +263,7 @@ class Q_learning:
         mdp = MDP(self.domain)
         mdp.compute_best_policy()
         op_a = optimal_agent(mdp)
-
+        self.Q = np.zeros((5, 5, 4)) # Initialise Q to 0
         for i in range(episodes):
             state = self.init_pos
             for j in range(transitions):
@@ -282,12 +284,12 @@ class Q_learning:
                 self.Q[state[0], state[1], action_index] = (1 - self.alpha) * Q[
                     state[0], state[1], action_index] + self.alpha * next_q
                 state = next_state
-                self.compute_policy(Q)
+                self.compute_policy(self.Q)
 
             # CALCULATE || JNQ - JN ||_inf
             J_NQ = self.j_opti_grid(100)  # Comment choisir N?
             J_N = self.domain.function_j(op_a, 100)
-            print(self.policy_grid)
+
             normInf.append(np.max(abs(J_NQ - J_N)))
 
         # plt.figure()
