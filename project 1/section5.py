@@ -237,13 +237,14 @@ class Q_learning:
         return -1
 
     def j_opti_grid(self, N):
+        pg = self.policy_grid
         J = np.zeros((5, 5))
         for n in range(N):
             J_prev = J.copy()
             for i in range(5):
                 for j in range(5):
                     state = (i, j)
-                    action = self.actions[int(self.policy_grid[i, j])]
+                    action = self.actions[int(pg[i, j])]
                     next_state = self.domain.det_dynamic(state, action)
                     if self.domain.type == 'det':
                         J[i, j] = self.domain.rewards[next_state[0], next_state[1]] + self.gamma * J_prev[
@@ -256,12 +257,12 @@ class Q_learning:
 
     def online_first(self, T=1000):
         transitions = T  # 1000
-        episodes = 5  # 100
+        episodes = 100  # 100
         normInf = []
         mdp = MDP(self.domain)
         mdp.compute_best_policy()
         op_a = optimal_agent(mdp)
-
+        self.Q = np.zeros((5, 5, 4))  # Initialise Q to 0
         for i in range(episodes):
             state = self.init_pos
             for j in range(transitions):
@@ -269,7 +270,7 @@ class Q_learning:
                 if rand < self.epsilon:
                     action_index = int(self.policy_grid[state])
                 else:
-                    action_index = np.random.randint(3)
+                    action_index = np.random.randint(4)
                 next_state = self.domain.dynamic(state, self.actions[action_index])
 
                 Q_prev = self.Q.copy()
@@ -279,15 +280,15 @@ class Q_learning:
                                               Q_prev[next_state[0], next_state[1], 1],
                                               Q_prev[next_state[0], next_state[1], 2],
                                               Q_prev[next_state[0], next_state[1], 3])
-                self.Q[state[0], state[1], action_index] = (1 - self.alpha) * Q[
-                    state[0], state[1], action_index] + self.alpha * next_q
+                self.Q[state[0], state[1], action_index] = (1 - self.alpha) * Q_prev[state[0], state[1], action_index] + \
+                                                           self.alpha * next_q
                 state = next_state
-                self.compute_policy(Q)
+                self.compute_policy(self.Q)
 
             # CALCULATE || JNQ - JN ||_inf
             J_NQ = self.j_opti_grid(100)  # Comment choisir N?
             J_N = self.domain.function_j(op_a, 100)
-            print(self.policy_grid)
+
             normInf.append(np.max(abs(J_NQ - J_N)))
 
         # plt.figure()
@@ -313,7 +314,7 @@ class Q_learning:
                 if rand < self.epsilon:
                     action_index = self.policy_grid[state]  # Est-ce que policy grid renvoit bien un num?
                 else:
-                    action_index = np.random.randint(3)
+                    action_index = np.random.randint(4)
                 next_state = self.domain.dynamic(state, self.actions[action_index])
 
                 Q_prev = self.Q.copy()
@@ -323,7 +324,7 @@ class Q_learning:
                                               Q_prev[next_state[0], next_state[1], 1],
                                               Q_prev[next_state[0], next_state[1], 2],
                                               Q_prev[next_state[0], next_state[1], 3])
-                self.Q[state[0], state[1], action_index] = (1 - self.alpha) * Q[
+                self.Q[state[0], state[1], action_index] = (1 - self.alpha) * Q_prev[
                     state[0], state[1], action_index] + alpha * next_q
                 state = next_state
                 self.compute_policy(Q)
@@ -355,7 +356,7 @@ class Q_learning:
                 if rand < self.epsilon:
                     action_index = self.policy_grid[state]  # Est-ce que policy grid renvoit bien un num?
                 else:
-                    action_index = np.random.randint(3)
+                    action_index = np.random.randint(4)
                 next_state = self.domain.dynamic(state, self.actions[action_index])
 
                 reward = self.domain.rewards[next_state]
@@ -373,7 +374,7 @@ class Q_learning:
                                                       Q_prev[n_s[0], n_s[1], 1],
                                                       Q_prev[n_s[0], n_s[1], 2],
                                                       Q_prev[n_s[0], n_s[1], 3])
-                        self.Q[s[0], s[1], a] = (1 - self.alpha) * Q[
+                        self.Q[s[0], s[1], a] = (1 - self.alpha) * Q_prev[
                             s[0], s[1], a] + self.alpha * next_q
                     self.compute_policy(Q)
 
@@ -432,7 +433,7 @@ if __name__ == "__main__":
     d = domain('det')
     a = agent_rand()
     q_model = Q_learning(d)
-    q_model.generate_traj(a, 10 ** 4)
+    q_model.generate_traj(a, 10 ** 7)
     Q = q_model.compute_Q()
     q_model.compute_policy(Q)
     q_model.online_first()
