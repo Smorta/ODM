@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib
+
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import random
@@ -170,7 +171,7 @@ class MDP:
             prev_policy = self.policy_grid.copy()
             self.compute_policy(Q)
 
-            if np.array_equal(prev_policy, self.policy_grid):
+            if k == 20:
                 break
 
             Q = self.update_Q(Q)
@@ -220,7 +221,8 @@ class Q_learning:
                                      Q_prev[next_state[0], next_state[1], 1],
                                      Q_prev[next_state[0], next_state[1], 2],
                                      Q_prev[next_state[0], next_state[1], 3])
-            self.Q[state[0], state[1], action] = (1 - self.alpha) * self.Q[state[0], state[1], action] + self.alpha * next_q
+            self.Q[state[0], state[1], action] = (1 - self.alpha) * self.Q[
+                state[0], state[1], action] + self.alpha * next_q
         return self.Q
 
     def compute_policy(self, Q):
@@ -255,6 +257,26 @@ class Q_learning:
                                   + 0.5 * (self.domain.rewards[0, 0] + self.gamma * J_prev[0, 0])
         return J
 
+    def plt_online(self, online):
+        plt.figure()
+        if self.domain.type == "stocha":
+            normInf = []
+            for i in range(10):
+                normInf.append(online())
+
+            plt.plot(range(100), np.percentile(normInf, 50, axis=0))
+            plt.fill_between(range(100),
+                             np.percentile(normInf, 0, axis=0),
+                             np.percentile(normInf, 100, axis=0), alpha=0.3)
+            plt.ylabel(r'$|J_{µ_{\hat{Q}}}^{N} - J_{µ^{*}}^{N}|$')
+            plt.xlabel("Number of episodes")
+            plt.show()
+        else:
+            plt.plot(online())
+            plt.ylabel(r'$|J_{µ_{\hat{Q}}}^{N} - J_{µ^{*}}^{N}|$')
+            plt.xlabel("Number of episodes")
+            plt.show()
+
     def online_first(self, T=1000):
         transitions = T  # 1000
         episodes = 100  # 100
@@ -263,6 +285,8 @@ class Q_learning:
         mdp.compute_best_policy()
         op_a = optimal_agent(mdp)
         self.Q = np.zeros((5, 5, 4))  # Initialise Q to 0
+        self.compute_policy(self.Q)
+
         for i in range(episodes):
             state = self.init_pos
             for j in range(transitions):
@@ -272,95 +296,90 @@ class Q_learning:
                 else:
                     action_index = np.random.randint(4)
                 next_state = self.domain.dynamic(state, self.actions[action_index])
-
-                Q_prev = self.Q.copy()
                 r = self.domain.rewards[next_state]
 
-                next_q = r + self.gamma * max(Q_prev[next_state[0], next_state[1], 0],
-                                              Q_prev[next_state[0], next_state[1], 1],
-                                              Q_prev[next_state[0], next_state[1], 2],
-                                              Q_prev[next_state[0], next_state[1], 3])
-                self.Q[state[0], state[1], action_index] = (1 - self.alpha) * Q_prev[state[0], state[1], action_index] + \
+                next_q = r + self.gamma * max(self.Q[next_state[0], next_state[1], 0],
+                                              self.Q[next_state[0], next_state[1], 1],
+                                              self.Q[next_state[0], next_state[1], 2],
+                                              self.Q[next_state[0], next_state[1], 3])
+                self.Q[state[0], state[1], action_index] = (1 - self.alpha) * self.Q[state[0], state[1], action_index] + \
                                                            self.alpha * next_q
                 state = next_state
                 self.compute_policy(self.Q)
 
             # CALCULATE || JNQ - JN ||_inf
-            J_NQ = self.j_opti_grid(100)  # Comment choisir N?
-            J_N = self.domain.function_j(op_a, 100)
+            J_NQ = self.j_opti_grid(986)  # Comment choisir N?
+            J_N = self.domain.function_j(op_a, 986)
 
             normInf.append(np.max(abs(J_NQ - J_N)))
+        return normInf
 
-        # plt.figure()
-        plt.plot(normInf)
-        plt.show()
-        return Q
-
-    def online_second(self, T=100):
+    def online_second(self, T=1000):
 
         transitions = T  # 1000
-        episodes = 1  # 100
-        alpha = self.alpha
+        episodes = 100  # 100
         normInf = []
 
         mdp = MDP(self.domain)
         mdp.compute_best_policy()
         op_a = optimal_agent(mdp)
+        self.Q = np.zeros((5, 5, 4))  # Initialise Q to 0
+        self.compute_policy(self.Q)
 
         for i in range(episodes):
             state = self.init_pos
+            alpha = self.alpha
             for j in range(transitions):
                 rand = np.random.uniform()
                 if rand < self.epsilon:
-                    action_index = self.policy_grid[state]  # Est-ce que policy grid renvoit bien un num?
+                    action_index = int(self.policy_grid[state])  # Est-ce que policy grid renvoit bien un num?
                 else:
                     action_index = np.random.randint(4)
                 next_state = self.domain.dynamic(state, self.actions[action_index])
 
-                Q_prev = self.Q.copy()
                 r = self.domain.rewards[next_state]
 
-                next_q = r + self.gamma * max(Q_prev[next_state[0], next_state[1], 0],
-                                              Q_prev[next_state[0], next_state[1], 1],
-                                              Q_prev[next_state[0], next_state[1], 2],
-                                              Q_prev[next_state[0], next_state[1], 3])
-                self.Q[state[0], state[1], action_index] = (1 - self.alpha) * Q_prev[
+                next_q = r + self.gamma * max(self.Q[next_state[0], next_state[1], 0],
+                                              self.Q[next_state[0], next_state[1], 1],
+                                              self.Q[next_state[0], next_state[1], 2],
+                                              self.Q[next_state[0], next_state[1], 3])
+                self.Q[state[0], state[1], action_index] = (1 - alpha) * self.Q[
                     state[0], state[1], action_index] + alpha * next_q
                 state = next_state
-                self.compute_policy(Q)
+                self.compute_policy(self.Q)
                 alpha = alpha * 0.8
 
             # CALCULATE || JNQ - JN ||_inf
-            J_NQ = self.j_opti_grid(100) # Comment choisir N?
+            J_NQ = self.j_opti_grid(100)  # Comment choisir N?
             J_N = self.domain.function_j(op_a, 100)
             normInf.append(np.max(abs(J_NQ - J_N)))
+        return normInf
 
-        plt.figure()
-        plt.plot(range(episodes), normInf)
-        return Q
-
-    def online_third(self, T=100):
+    def online_third(self, T=1000):
         buff = replay()
         transitions = T  # 1000
-        episodes = 1  # 100
+        episodes = 100  # 100
         normInf = []
 
         mdp = MDP(self.domain)
         mdp.compute_best_policy()
         op_a = optimal_agent(mdp)
+        self.Q = np.zeros((5, 5, 4))  # Initialise Q to 0
+        self.compute_policy(self.Q)
 
         for i in range(episodes):
             state = self.init_pos
             for j in range(transitions):
                 rand = np.random.uniform()
                 if rand < self.epsilon:
-                    action_index = self.policy_grid[state]  # Est-ce que policy grid renvoit bien un num?
+                    action_index = int(self.policy_grid[state])  # Est-ce que policy grid renvoit bien un num?
                 else:
                     action_index = np.random.randint(4)
                 next_state = self.domain.dynamic(state, self.actions[action_index])
-
                 reward = self.domain.rewards[next_state]
+
                 buff.add(state, action_index, reward, next_state)
+                state = next_state
                 replay_trans = buff.draw()
 
                 if replay_trans:
@@ -376,16 +395,13 @@ class Q_learning:
                                                       Q_prev[n_s[0], n_s[1], 3])
                         self.Q[s[0], s[1], a] = (1 - self.alpha) * Q_prev[
                             s[0], s[1], a] + self.alpha * next_q
-                    self.compute_policy(Q)
+                    self.compute_policy(self.Q)
 
             # CALCULATE || JNQ - JN ||_inf
-            J_NQ = self.j_opti_grid(100) # Comment choisir N?
+            J_NQ = self.j_opti_grid(100)  # Comment choisir N?
             J_N = self.domain.function_j(op_a, 100)
             normInf.append(np.max(abs(J_NQ - J_N)))
-
-        plt.figure()
-        plt.plot(range(episodes), normInf)
-        return Q
+        return normInf
 
 
 class replay:
@@ -396,6 +412,10 @@ class replay:
     def add(self, state, action, reward, next_state):
         self.size += 1
         self.memory.append((state, action, reward, next_state))
+
+    def show(self):
+        print(self.size)
+        print(self.memory)
 
     def draw(self, N=10):
         if self.size >= 10:
@@ -433,8 +453,10 @@ if __name__ == "__main__":
     d = domain('det')
     a = agent_rand()
     q_model = Q_learning(d)
-    q_model.generate_traj(a, 10 ** 7)
-    Q = q_model.compute_Q()
-    q_model.compute_policy(Q)
-    q_model.online_first()
-    q_model.j_opti_grid(100)
+    # q_model.generate_traj(a, 10 ** 7)
+    # Q = q_model.compute_Q()
+    # q_model.compute_policy(Q)
+    # q_model.online_first()
+    q_model.plt_online(q_model.online_third)
+#  q_model.online_third()
+# q_model.j_opti_grid(100)
