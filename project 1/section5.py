@@ -257,24 +257,28 @@ class Q_learning:
                                   + 0.5 * (self.domain.rewards[0, 0] + self.gamma * J_prev[0, 0])
         return J
 
-    def plt_online(self, online):
-        plt.figure()
+    def plt_online(self, online, num):
+        plt.figure(num)
         if self.domain.type == "stocha":
             normInf = []
             for i in range(10):
                 normInf.append(online())
 
-            plt.plot(range(100), np.percentile(normInf, 50, axis=0))
+            plt.plot(range(100), np.percentile(normInf, 50, axis=0), label="Infinite norm")
+            plt.plot(range(100), np.std(normInf, axis=0), label="Standard deviation")
             plt.fill_between(range(100),
                              np.percentile(normInf, 0, axis=0),
                              np.percentile(normInf, 100, axis=0), alpha=0.3)
             plt.ylabel(r'$|J_{µ_{\hat{Q}}}^{N} - J_{µ^{*}}^{N}|$')
             plt.xlabel("Number of episodes")
+            plt.legend()
+            plt.grid()
             plt.show()
         else:
             plt.plot(online())
             plt.ylabel(r'$|J_{µ_{\hat{Q}}}^{N} - J_{µ^{*}}^{N}|$')
             plt.xlabel("Number of episodes")
+            plt.grid()
             plt.show()
 
     def online_first(self, T=1000):
@@ -450,13 +454,14 @@ def heatmap_visit(mdp):
 
 
 if __name__ == "__main__":
-    d = domain('det')
-    a = agent_rand()
+    # d = domain('det')
+    # q_model = Q_learning(d)
+    # q_model.plt_online(q_model.online_first, 1)
+    # q_model.plt_online(q_model.online_second, 2)
+    # q_model.plt_online(q_model.online_third, 3)
+    d = domain('stocha')
     q_model = Q_learning(d)
-    # q_model.generate_traj(a, 10 ** 7)
-    # Q = q_model.compute_Q()
-    # q_model.compute_policy(Q)
-    # q_model.online_first()
-    q_model.plt_online(q_model.online_third)
-#  q_model.online_third()
-# q_model.j_opti_grid(100)
+    q_model.plt_online(q_model.online_first, 4)
+    q_model.plt_online(q_model.online_second, 5)
+    q_model.plt_online(q_model.online_third, 6)
+
