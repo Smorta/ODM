@@ -200,27 +200,28 @@ class Q_learning:
         self.init_pos = (3, 0)
 
     def generate_traj(self, agent, T):
-        state = self.domain.get_current_state()
+        state = self.init_pos
         for i in range(T):
             action = agent.chose_action(state)
             next_state = self.domain.dynamic(state, action)
             reward = self.domain.rewards[next_state]
-            state = next_state
             self.N[state[0], state[1]] += 1
             self.trajectory.append((state, action, reward))
+            state = next_state
+
 
     def compute_Q(self):
+        self.Q = np.zeros((5, 5, 4))
         for k in range(len(self.trajectory) - 1):
-            Q_prev = self.Q.copy()
             gamma = self.domain.gamma
             state = self.trajectory[k][0]
             action = self.actions.index(self.trajectory[k][1])
             next_state = self.trajectory[k + 1][0]
             r = self.trajectory[k][2]
-            next_q = r + gamma * max(Q_prev[next_state[0], next_state[1], 0],
-                                     Q_prev[next_state[0], next_state[1], 1],
-                                     Q_prev[next_state[0], next_state[1], 2],
-                                     Q_prev[next_state[0], next_state[1], 3])
+            next_q = r + gamma * max(self.Q[next_state[0], next_state[1], 0],
+                                     self.Q[next_state[0], next_state[1], 1],
+                                     self.Q[next_state[0], next_state[1], 2],
+                                     self.Q[next_state[0], next_state[1], 3])
             self.Q[state[0], state[1], action] = (1 - self.alpha) * self.Q[
                 state[0], state[1], action] + self.alpha * next_q
         return self.Q
@@ -257,25 +258,28 @@ class Q_learning:
                                   + 0.5 * (self.domain.rewards[0, 0] + self.gamma * J_prev[0, 0])
         return J
 
-    def plt_online(self, online):
-        plt.figure()
+    def plt_online(self, online, num, title="fig"):
+        plt.figure(num)
         if self.domain.type == "stocha":
             normInf = []
             for i in range(10):
                 normInf.append(online())
 
-            plt.plot(range(100), np.percentile(normInf, 50, axis=0))
+            plt.plot(range(100), np.percentile(normInf, 50, axis=0), label="Infinite norm")
+            plt.plot(range(100), np.std(normInf, axis=0), label="Standard deviation")
             plt.fill_between(range(100),
                              np.percentile(normInf, 0, axis=0),
                              np.percentile(normInf, 100, axis=0), alpha=0.3)
             plt.ylabel(r'$|J_{µ_{\hat{Q}}}^{N} - J_{µ^{*}}^{N}|$')
             plt.xlabel("Number of episodes")
-            plt.show()
+            plt.legend()
+            plt.grid()
         else:
             plt.plot(online())
             plt.ylabel(r'$|J_{µ_{\hat{Q}}}^{N} - J_{µ^{*}}^{N}|$')
             plt.xlabel("Number of episodes")
-            plt.show()
+            plt.grid()
+        plt.savefig(title + ".pdf")
 
     def online_first(self, T=1000):
         transitions = T  # 1000
@@ -450,13 +454,24 @@ def heatmap_visit(mdp):
 
 
 if __name__ == "__main__":
-    d = domain('det')
+    d = domain('stocha')
     a = agent_rand()
+    mdp = MDP(d)
+    mdp.compute_best_policy()
+    op_a = optimal_agent(mdp)
+    J_N = d.function_j(op_a, 980)
     q_model = Q_learning(d)
-    # q_model.generate_traj(a, 10 ** 7)
-    # Q = q_model.compute_Q()
-    # q_model.compute_policy(Q)
-    # q_model.online_first()
-    q_model.plt_online(q_model.online_third)
-#  q_model.online_third()
-# q_model.j_opti_grid(100)
+    q_model.generate_traj(a, 10 ** 7)
+    Q = q_model.compute_Q()
+    q_model.compute_policy(Q)
+    J_N_est = q_model.j_opti_grid(980)
+    print("True J\n")
+    print(J_N)
+    print("Estimated J\n")
+    print(J_N_est)
+
+    print("True J\n")
+    print(J_N)
+    print("Estimated J\n")
+    print(J_N_est)
+    heatmap_visit(q_model)
