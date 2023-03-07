@@ -335,7 +335,7 @@ class Q_learning:
             for j in range(transitions):
                 rand = np.random.uniform()
                 if rand < self.epsilon:
-                    action_index = int(self.policy_grid[state])  # Est-ce que policy grid renvoit bien un num?
+                    action_index = int(self.policy_grid[state])
                 else:
                     action_index = np.random.randint(4)
                 next_state = self.domain.dynamic(state, self.actions[action_index])
@@ -375,7 +375,7 @@ class Q_learning:
             for j in range(transitions):
                 rand = np.random.uniform()
                 if rand < self.epsilon:
-                    action_index = int(self.policy_grid[state])  # Est-ce que policy grid renvoit bien un num?
+                    action_index = int(self.policy_grid[state])  #
                 else:
                     action_index = np.random.randint(4)
                 next_state = self.domain.dynamic(state, self.actions[action_index])
