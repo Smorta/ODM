@@ -1,5 +1,9 @@
 import numpy as np
+import matplotlib
+
+matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
+import random
 
 
 class domain:
@@ -167,7 +171,7 @@ class MDP:
             prev_policy = self.policy_grid.copy()
             self.compute_policy(Q)
 
-            if np.array_equal(prev_policy, self.policy_grid):
+            if k == 20:
                 break
 
             Q = self.update_Q(Q)
@@ -191,31 +195,35 @@ class Q_learning:
         self.N = np.zeros((5, 5))
         self.alpha = 0.05
         self.gamma = 0.99
+        self.epsilon = 0.5
         self.Q = np.zeros((5, 5, 4))
+        self.init_pos = (3, 0)
 
     def generate_traj(self, agent, T):
-        state = self.domain.get_current_state()
+        state = self.init_pos
         for i in range(T):
             action = agent.chose_action(state)
-            reward = self.domain.reward(state, action)
-            state = self.domain.dynamic(state, action)
+            next_state = self.domain.dynamic(state, action)
+            reward = self.domain.rewards[next_state]
             self.N[state[0], state[1]] += 1
             self.trajectory.append((state, action, reward))
+            state = next_state
 
     def compute_Q(self):
+        self.Q = np.zeros((5, 5, 4))
         for k in range(len(self.trajectory) - 1):
-            Q_prev = self.Q.copy()
             gamma = self.domain.gamma
             state = self.trajectory[k][0]
             action = self.actions.index(self.trajectory[k][1])
             next_state = self.trajectory[k + 1][0]
             r = self.trajectory[k][2]
-            next_q = r + gamma * max(Q_prev[next_state[0], next_state[1], 0],
-                                     Q_prev[next_state[0], next_state[1], 1],
-                                     Q_prev[next_state[0], next_state[1], 2],
-                                     Q_prev[next_state[0], next_state[1], 3])
-            self.Q[state[0], state[1], action] = (1 - self.alpha) * Q[state[0], state[1], action] + self.alpha * next_q
-        return Q
+            next_q = r + gamma * max(self.Q[next_state[0], next_state[1], 0],
+                                     self.Q[next_state[0], next_state[1], 1],
+                                     self.Q[next_state[0], next_state[1], 2],
+                                     self.Q[next_state[0], next_state[1], 3])
+            self.Q[state[0], state[1], action] = (1 - self.alpha) * self.Q[
+                state[0], state[1], action] + self.alpha * next_q
+        return self.Q
 
     def compute_policy(self, Q):
         if self.policy_grid is None:
@@ -229,6 +237,25 @@ class Q_learning:
             x, y = state
             return self.actions[int(self.policy_grid[x, y])]
         return -1
+
+    def j_opti_grid(self, N):
+        pg = self.policy_grid
+        J = np.zeros((5, 5))
+        for n in range(N):
+            J_prev = J.copy()
+            for i in range(5):
+                for j in range(5):
+                    state = (i, j)
+                    action = self.actions[int(pg[i, j])]
+                    next_state = self.domain.det_dynamic(state, action)
+                    if self.domain.type == 'det':
+                        J[i, j] = self.domain.rewards[next_state[0], next_state[1]] + self.gamma * J_prev[
+                            next_state[0], next_state[1]]
+                    else:
+                        J[i, j] = 0.5 * (self.domain.rewards[next_state[0], next_state[1]] + self.gamma * J_prev[
+                            next_state[0], next_state[1]]) \
+                                  + 0.5 * (self.domain.rewards[0, 0] + self.gamma * J_prev[0, 0])
+        return J
 
 
 def heatmap_visit(mdp):
@@ -260,8 +287,22 @@ def heatmap_visit(mdp):
 if __name__ == "__main__":
     d = domain('stocha')
     a = agent_rand()
+    mdp = MDP(d)
+    mdp.compute_best_policy()
+    op_a = optimal_agent(mdp)
+    J_N = d.function_j(op_a, 980)
     q_model = Q_learning(d)
     q_model.generate_traj(a, 10 ** 7)
     Q = q_model.compute_Q()
-    q_model.compute_policy(q_model)
+    q_model.compute_policy(Q)
+    J_N_est = q_model.j_opti_grid(980)
+    print("True J\n")
+    print(J_N)
+    print("Estimated J\n")
+    print(J_N_est)
+
+    print("True J\n")
+    print(J_N)
+    print("Estimated J\n")
+    print(J_N_est)
     heatmap_visit(q_model)

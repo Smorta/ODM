@@ -1,8 +1,6 @@
-import numpy
 import numpy as np
 import matplotlib.pyplot as plt
 import random
-
 
 class domain:
     def __init__(self, type):
@@ -95,6 +93,7 @@ class MDP:
         self.policy_grid = None
         self.actions = [(-1, 0), (0, -1), (1, 0), (0, 1)]
         self.domain = domain
+        self.Q = None
 
     def get_r(self, state, action):
         if self.domain.get_type == "stocha":
@@ -162,6 +161,7 @@ class MDP:
     def compute_best_policy(self):
         Q = self.compute_Q(1)
         k = 0
+        equal = 0
         if self.policy_grid is None:
             self.policy_grid = np.zeros((5, 5))
         while True:
@@ -170,10 +170,14 @@ class MDP:
             self.compute_policy(Q)
 
             if np.array_equal(prev_policy, self.policy_grid):
+                equal += 1
+
+            if equal >= 5:
                 break
 
             Q = self.update_Q(Q)
 
+        self.Q = Q
         print(k, 'iteration needed to reach convergence')
 
     def compute_policy(self, Q):
@@ -192,35 +196,10 @@ class Q_learning:
         self.trajectory = []
         self.N = np.zeros((5, 5))
         self.alpha = 0.05
-        self.gamma = 0.99
+        self.gamma = 0.4
         self.epsilon = 0.5
         self.Q = np.zeros((5, 5, 4))
         self.init_pos = (3, 0)
-
-    def generate_traj(self, agent, T):
-        state = self.domain.get_current_state()
-        for i in range(T):
-            action = agent.chose_action(state)
-            next_state = self.domain.dynamic(state, action)
-            reward = self.domain.rewards[next_state]
-            state = next_state
-            self.N[state[0], state[1]] += 1
-            self.trajectory.append((state, action, reward))
-
-    def compute_Q(self):
-        for k in range(len(self.trajectory) - 1):
-            Q_prev = self.Q.copy()
-            gamma = self.domain.gamma
-            state = self.trajectory[k][0]
-            action = self.actions.index(self.trajectory[k][1])
-            next_state = self.trajectory[k + 1][0]
-            r = self.trajectory[k][2]
-            next_q = r + gamma * max(Q_prev[next_state[0], next_state[1], 0],
-                                     Q_prev[next_state[0], next_state[1], 1],
-                                     Q_prev[next_state[0], next_state[1], 2],
-                                     Q_prev[next_state[0], next_state[1], 3])
-            self.Q[state[0], state[1], action] = (1 - self.alpha) * self.Q[state[0], state[1], action] + self.alpha * next_q
-        return self.Q
 
     def compute_policy(self, Q):
         if self.policy_grid is None:
@@ -236,13 +215,14 @@ class Q_learning:
         return -1
 
     def j_opti_grid(self, N):
+        pg = self.policy_grid
         J = np.zeros((5, 5))
         for n in range(N):
             J_prev = J.copy()
             for i in range(5):
                 for j in range(5):
                     state = (i, j)
-                    action = self.policy_grid[i, j]
+                    action = self.actions[int(pg[i, j])]
                     next_state = self.domain.det_dynamic(state, action)
                     if self.domain.type == 'det':
                         J[i, j] = self.domain.rewards[next_state[0], next_state[1]] + self.gamma * J_prev[
@@ -253,110 +233,123 @@ class Q_learning:
                                   + 0.5 * (self.domain.rewards[0, 0] + self.gamma * J_prev[0, 0])
         return J
 
-    def online_first(self, T=100):
-        transitions = T  # 1000
-        episodes = 1  # 100
-        normInf = []
+    def plt_online(self, online, num, title="fig"):
+        plt.figure(num)
+        if self.domain.type == "stocha":
+            normInf = []
+            for i in range(10):
+                normInf.append(online())
 
+            plt.plot(range(100), np.percentile(normInf, 50, axis=0), label="Infinite norm")
+            plt.plot(range(100), np.std(normInf, axis=0), label="Standard deviation")
+            plt.fill_between(range(100),
+                             np.percentile(normInf, 0, axis=0),
+                             np.percentile(normInf, 100, axis=0), alpha=0.3)
+            plt.ylabel(r'$|J_{µ_{\hat{Q}}}^{N} - J_{µ^{*}}^{N}|$')
+            plt.xlabel("Number of episodes")
+            plt.legend()
+            plt.grid()
+        else:
+            plt.plot(online())
+            plt.ylabel(r'$|J_{µ_{\hat{Q}}}^{N} - J_{µ^{*}}^{N}|$')
+            plt.xlabel("Number of episodes")
+            plt.grid()
+        plt.savefig(title + ".pdf")
+
+    def online_first(self, T=1000):
+        transitions = T  # 1000
+        episodes = 100  # 100
+        normInf = []
         mdp = MDP(self.domain)
         mdp.compute_best_policy()
-        op_a = optimal_agent(mdp)
+        self.Q = np.zeros((5, 5, 4))  # Initialise Q to 0
+        self.compute_policy(self.Q)
 
         for i in range(episodes):
             state = self.init_pos
             for j in range(transitions):
                 rand = np.random.uniform()
                 if rand < self.epsilon:
-                    action_index = self.policy_grid[state]
+                    action_index = int(self.policy_grid[state])
                 else:
-                    action_index = np.random.randint(3)
+                    action_index = np.random.randint(4)
                 next_state = self.domain.dynamic(state, self.actions[action_index])
-
-                Q_prev = self.Q.copy()
                 r = self.domain.rewards[next_state]
 
-                next_q = r + self.gamma * max(Q_prev[next_state[0], next_state[1], 0],
-                                              Q_prev[next_state[0], next_state[1], 1],
-                                              Q_prev[next_state[0], next_state[1], 2],
-                                              Q_prev[next_state[0], next_state[1], 3])
-                self.Q[state[0], state[1], action_index] = (1 - self.alpha) * Q[
-                    state[0], state[1], action_index] + self.alpha * next_q
+                next_q = r + self.gamma * max(self.Q[next_state[0], next_state[1], 0],
+                                              self.Q[next_state[0], next_state[1], 1],
+                                              self.Q[next_state[0], next_state[1], 2],
+                                              self.Q[next_state[0], next_state[1], 3])
+                self.Q[state[0], state[1], action_index] = (1 - self.alpha) * self.Q[state[0], state[1], action_index] + \
+                                                           self.alpha * next_q
                 state = next_state
-                self.compute_policy(Q)
+                self.compute_policy(self.Q)
 
-            # CALCULATE || JNQ - JN ||_inf
-            J_NQ = self.j_opti_grid(100) # Comment choisir N?
-            J_N = self.domain.function_j(op_a, 100)
-            normInf.append(np.max(abs(J_NQ - J_N)))
+            normInf.append(np.max(abs(self.Q - mdp.Q)))
+        return normInf
 
-        plt.figure()
-        plt.plot(range(episodes), normInf)
-        return Q
+    def online_second(self, T=1000):
 
-    def online_second(self, T=100):
         transitions = T  # 1000
-        episodes = 1  # 100
-        alpha = self.alpha
+        episodes = 100  # 100
         normInf = []
 
         mdp = MDP(self.domain)
         mdp.compute_best_policy()
-        op_a = optimal_agent(mdp)
+        self.Q = np.zeros((5, 5, 4))  # Initialise Q to 0
+        self.compute_policy(self.Q)
 
         for i in range(episodes):
             state = self.init_pos
+            alpha = self.alpha
             for j in range(transitions):
                 rand = np.random.uniform()
                 if rand < self.epsilon:
-                    action_index = self.policy_grid[state]  # Est-ce que policy grid renvoit bien un num?
+                    action_index = int(self.policy_grid[state])
                 else:
-                    action_index = np.random.randint(3)
+                    action_index = np.random.randint(4)
                 next_state = self.domain.dynamic(state, self.actions[action_index])
 
-                Q_prev = self.Q.copy()
                 r = self.domain.rewards[next_state]
 
-                next_q = r + self.gamma * max(Q_prev[next_state[0], next_state[1], 0],
-                                              Q_prev[next_state[0], next_state[1], 1],
-                                              Q_prev[next_state[0], next_state[1], 2],
-                                              Q_prev[next_state[0], next_state[1], 3])
-                self.Q[state[0], state[1], action_index] = (1 - self.alpha) * Q[
+                next_q = r + self.gamma * max(self.Q[next_state[0], next_state[1], 0],
+                                              self.Q[next_state[0], next_state[1], 1],
+                                              self.Q[next_state[0], next_state[1], 2],
+                                              self.Q[next_state[0], next_state[1], 3])
+                self.Q[state[0], state[1], action_index] = (1 - alpha) * self.Q[
                     state[0], state[1], action_index] + alpha * next_q
                 state = next_state
-                self.compute_policy(Q)
+                self.compute_policy(self.Q)
                 alpha = alpha * 0.8
 
             # CALCULATE || JNQ - JN ||_inf
-            J_NQ = self.j_opti_grid(100) # Comment choisir N?
-            J_N = self.domain.function_j(op_a, 100)
-            normInf.append(np.max(abs(J_NQ - J_N)))
+            normInf.append(np.max(abs(self.Q - mdp.Q)))
+        return normInf
 
-        plt.figure()
-        plt.plot(range(episodes), normInf)
-        return Q
-
-    def online_third(self, T=100):
+    def online_third(self, T=1000):
         buff = replay()
         transitions = T  # 1000
-        episodes = 1  # 100
+        episodes = 100  # 100
         normInf = []
 
         mdp = MDP(self.domain)
         mdp.compute_best_policy()
-        op_a = optimal_agent(mdp)
+        self.Q = np.zeros((5, 5, 4))  # Initialise Q to 0
+        self.compute_policy(self.Q)
 
         for i in range(episodes):
             state = self.init_pos
             for j in range(transitions):
                 rand = np.random.uniform()
                 if rand < self.epsilon:
-                    action_index = self.policy_grid[state]  # Est-ce que policy grid renvoit bien un num?
+                    action_index = int(self.policy_grid[state])
                 else:
-                    action_index = np.random.randint(3)
+                    action_index = np.random.randint(4)
                 next_state = self.domain.dynamic(state, self.actions[action_index])
-
                 reward = self.domain.rewards[next_state]
+
                 buff.add(state, action_index, reward, next_state)
+                state = next_state
                 replay_trans = buff.draw()
 
                 if replay_trans:
@@ -370,18 +363,13 @@ class Q_learning:
                                                       Q_prev[n_s[0], n_s[1], 1],
                                                       Q_prev[n_s[0], n_s[1], 2],
                                                       Q_prev[n_s[0], n_s[1], 3])
-                        self.Q[s[0], s[1], a] = (1 - self.alpha) * Q[
+                        self.Q[s[0], s[1], a] = (1 - self.alpha) * Q_prev[
                             s[0], s[1], a] + self.alpha * next_q
-                    self.compute_policy(Q)
+                    self.compute_policy(self.Q)
 
             # CALCULATE || JNQ - JN ||_inf
-            J_NQ = self.j_opti_grid(100) # Comment choisir N?
-            J_N = self.domain.function_j(op_a, 100)
-            normInf.append(np.max(abs(J_NQ - J_N)))
-
-        plt.figure()
-        plt.plot(range(episodes), normInf)
-        return Q
+            normInf.append(np.max(abs(self.Q - mdp.Q)))
+        return normInf
 
 
 class replay:
@@ -393,10 +381,59 @@ class replay:
         self.size += 1
         self.memory.append((state, action, reward, next_state))
 
+    def show(self):
+        print(self.size)
+        print(self.memory)
+
     def draw(self, N=10):
         if self.size >= 10:
             return random.choices(self.memory, k=N)
         return None
+
+
+def plot_gamma():
+    plt.figure()
+    values1 = []
+    values2 = []
+    T = 1000
+    init_1 = 0.99
+    init_2 = 0.4
+    tmp = init_1
+    for i in range(T):
+        values1.append(tmp)
+        tmp *= init_1
+    tmp = init_2
+    for i in range(T):
+        values2.append(tmp)
+        tmp *= init_2
+
+    plt.plot(values1, label=r'$\gamma_0=0.99$')
+    plt.plot(values2, label=r'$\gamma_0=0.4$')
+    plt.ylabel(r'$\gamma^N$')
+    plt.xlabel("N")
+    plt.xscale('log')
+    plt.legend()
+    plt.grid()
+    plt.savefig('figures/gamma' + ".pdf")
+
+
+def plot_alpha():
+    plt.figure()
+    values1 = []
+    T = 1000
+    init_1 = 0.05
+    tmp = init_1
+    for i in range(T):
+        values1.append(tmp)
+        tmp *= init_1
+
+    plt.plot(values1, label=r'$\alpha$')
+    plt.ylabel(r'$\alpha$')
+    plt.xlabel("Number of transitions")
+    plt.xscale('log')
+    plt.legend()
+    plt.grid()
+    plt.savefig('figures/alpha' + ".pdf")
 
 
 def heatmap_visit(mdp):
@@ -429,7 +466,8 @@ if __name__ == "__main__":
     d = domain('stocha')
     a = agent_rand()
     q_model = Q_learning(d)
-    q_model.generate_traj(a, 10 ** 4)
-    Q = q_model.compute_Q()
-    q_model.compute_policy(Q)
-    q_model.j_opti_grid(100)
+    q_model.plt_online(q_model.online_first, 1, title="figures/first_stocha")
+    q_model.plt_online(q_model.online_second, 2, title="figures/second_stocha")
+    q_model.plt_online(q_model.online_third, 3, title="figures/third_stocha")
+    plot_gamma()
+    plot_alpha()
