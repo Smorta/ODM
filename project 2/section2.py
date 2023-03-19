@@ -11,9 +11,9 @@ class domain:
 
     def reward(self, state, action):
         next_p, next_s = self.dynamic(state, action)
-        if next_p < -1 or next_s > 3:
+        if next_p < -1 or abs(next_s) > 3:
             return -1
-        if next_p > 1 and next_s <= 3:
+        if next_p > 1 and abs(next_s) <= 3:
             return 1
         else:
             return 0
@@ -58,6 +58,25 @@ class domain:
             next_s = s + self.integration_step * s_d
         return next_p, next_s
 
+class agent_decelerate:
+    def __init__(self):
+        pass
+
+    def chose_action(self, state):
+        return -4
+
+
+class agent_random:
+    def __init__(self):
+        pass
+
+    def chose_action(self, state):
+        rand = np.random.uniform()
+        if rand < 0.5:
+            return -4
+        else:
+            return 4
+
 
 class agent_accelerate:
     def __init__(self):
@@ -67,18 +86,57 @@ class agent_accelerate:
         return 4
 
 
-if __name__ == "__main__":
-    s = (-0.1, 0)
-    domain = domain()
-    agent = agent_accelerate()
-    trajectory = []
-    while not domain.terminal_state(s):
+def compute_J(state, domain, agent, N):
+    J = np.zeros(N)
+    a = agent.chose_action(state)
+    r = domain.reward(state, a)
+    next_s = domain.dynamic(state, a)
+    J[0] = r
+    state = next_s
+    for i in range(1, N):
         # policy is always accelerate
-        a = agent.chose_action(s)
-        r = domain.reward(s, a)
-        next_s = domain.dynamic(s, a)
-        trajectory.append([s, a, r, next_s])
-        s = next_s
-    for traj in trajectory:
-        print(traj)
-    print('length of the trajectory = ', len(trajectory))
+        if domain.terminal_state(state):
+            J[i] = J[i - 1]
+            continue
+        a = agent.chose_action(state)
+        r = domain.reward(state, a)
+        next_s = domain.dynamic(state, a)
+        J[i] = r + domain.gamma * J[i - 1]
+        state = next_s
+    return J
+
+
+def monte_carlo_J(domain, agent, nbr_state, N):
+    start_list = np.random.uniform(-0.1, 0.1, nbr_state)
+    J_tot = np.zeros(N)
+
+    for i in range(nbr_state):
+        print("|", end='')
+        s = (start_list[i], 0)
+        J = compute_J(s, domain, agent, N)
+        J_tot = J_tot + J
+
+    return J_tot / nbr_state
+
+
+def max_number_of_steps(J, N, nbr_state):
+    max_n = N
+    for j in range(N - 1, 0):
+        if J[j] == 0:
+            if max_n > j:
+                max_n = j + 1
+        else:
+            break
+    return max_n
+
+
+if __name__ == "__main__":
+    domain = domain()
+    agent = agent_random()
+    N = 400
+    nbr_start = 50
+    J = monte_carlo_J(domain, agent, nbr_start, N)
+    max_step = max_number_of_steps(J, N, nbr_start)
+    print(J)
+    print(max_step)
+
