@@ -1,8 +1,10 @@
 import math
 import numpy as np
+from matplotlib import pyplot as plt
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.neural_network import MLPRegressor
+from tqdm import tqdm
 
 class domain:
     def __init__(self):
@@ -53,8 +55,7 @@ class domain:
         for i in range(nbr_int_step):
             s = next_s
             p = next_p
-            s_d = (action / (m * (1 + pow(self.hill_d(p), 2)))) - ((g * self.hill_d(p)) / (1 + pow(self.hill_d(p), 2))) \
-                  - ((pow(s, 2) * self.hill_d(p) * self.hill_dd(p)) / (1 + pow(self.hill_d(p), 2)))
+            s_d = (action - (g * self.hill_d(p)) - (self.hill_d(p) * self.hill_dd(p) * s **2)) / (1 + self.hill_d(p)**2)
             p_d = s
             next_p = p + self.integration_step * p_d
             next_s = s + self.integration_step * s_d
@@ -73,9 +74,9 @@ def sup_learning_tech(X, y, tech=0):
     if tech == 0:
         return LinearRegression().fit(X, y)
     elif tech == 1:
-        return ExtraTreesRegressor().fit(X, y)  # We can change number of estimators, currently = 100
+        return ExtraTreesRegressor(n_estimators=10).fit(X, y)  # We can change number of estimators, currently = 100
     elif tech == 2:
-        return MLPRegressor().fit(X, y)  # Change the intern structure here
+        return MLPRegressor(hidden_layer_sizes=(10, 20, 20, 10), activation='relu', max_iter=800).fit(X, y)  # Change the intern structure here
     else:
         print("Error")
         return 0
@@ -90,13 +91,129 @@ def fitted_Q(Q, N, trajectory, tech):
         r_i = state[2]
         x_next_i = state[3]
 
-        X.append((x_i, u_i))
+        X.append([x_i[0], x_i[1], u_i])
 
         if N == 1:
             y.append(r_i)
         else:
-            new_r = r_i + 0.95 * max(Q(x_next_i, -4),
-                                     Q(x_next_i, 4))
+            new_r = r_i + 0.95 * max(Q.predict([[x_next_i[0], x_next_i[1], -4]]),
+                                     Q.predict([[x_next_i[0], x_next_i[1], 4]]))[0]
             y.append(new_r)
+
     new_Q = sup_learning_tech(X, y, tech)
     return new_Q
+
+
+def discret_Q(Q_regr, resolution):
+    speed_step = int(6 / resolution)
+    spatial_step = int(2 / resolution)
+    Q_grid = np.zeros((2, spatial_step, speed_step))
+    print("discrete_Q")
+    for i in tqdm(range(spatial_step)):  # for the speed
+        for j in range(speed_step):  # for the position
+            Q_grid[0][i][j] = Q_regr.predict([[i, j, -4]])
+            Q_grid[1][i][j] = Q_regr.predict([[i, j, 4]])
+    return Q_grid
+
+
+def dicret_policy(Q_grid):
+    spatial_step = Q_grid.shape[0]
+    speed_step = Q_grid.shape[1]
+    policy_grid = np.zeros((spatial_step, speed_step))
+    for i in tqdm(range(spatial_step)):  # for the speed
+        for j in range(speed_step):  # for the position
+            if Q_grid[0][i][j] > Q_grid[1][i][j]:
+                policy_grid[i][j] = -4
+            else:
+                policy_grid[i][j] = 4
+    return policy_grid
+
+
+def display_colored_grid(Q_grid):
+    spatial_step = Q_grid.shape[0]
+    speed_step = Q_grid.shape[1]
+    p_list, s_list = np.meshgrid(np.linspace(-1, 1, spatial_step), np.linspace(-3, 3, speed_step))
+
+    l_a = p_list.min()
+    r_a = p_list.max()
+    l_b = s_list.min()
+    r_b = s_list.max()
+    l_c, r_c = np.amax(Q_grid), np.amin(Q_grid)
+
+    figure, axes = plt.subplots()
+    Q_plot = np.swapaxes(Q_grid, 0, 1)
+    c = axes.pcolormesh(p_list, s_list, Q_plot, cmap='bwr', vmin=l_c, vmax=r_c, shading='auto')
+    # axes.set_title(title)
+    axes.axis([l_a, r_a, l_b, r_b])
+    axes.set_xlabel("Position")
+    axes.set_ylabel("Speed")
+    figure.colorbar(c)
+
+    plt.show()
+
+
+def stop_rule_1(epsilon, trajectory, tech):
+    Q_prev = np.zeros((2, 20, 60))
+    print("enter sr1")
+    Q_reg = fitted_Q(None, 1, trajectory, tech)
+
+    Q_dis = discret_Q(Q_reg, 0.1)
+    N = 1
+    while np.amax(Q_dis - Q_prev) > epsilon:
+        print(np.amax(Q_dis - Q_prev))
+        N += 1
+        Q_prev = Q_dis.copy()
+        Q_reg = fitted_Q(Q_reg, N, trajectory, tech)
+        Q_dis = discret_Q(Q_reg, 0.1)
+    return Q_reg
+
+
+def stop_rule_2(epsilon, domain, trajectory, tech):
+    Q_reg = fitted_Q(None, 1, trajectory, tech)
+    Br = 1  # maximum reward
+    Optimalstep = math.log(epsilon * (1 - domain.gamma) / Br, domain.gamma)
+    steps = int(Optimalstep)
+    N = 1
+    for i in tqdm(range(steps)):
+        Q_reg = fitted_Q(Q_reg, N, trajectory, tech)
+        N += 1
+    return Q_reg
+
+
+class agent_random:
+    def __init__(self):
+        pass
+
+    def chose_action(self, state):
+        rand = np.random.uniform()
+        if rand < 0.5:
+            return -4
+        else:
+            return 4
+
+
+def offline(nbr_episodes, domain, agent):
+    trajectory = []
+    initial_positions = np.random.uniform(-0.1, 0.1, nbr_episodes)
+    i = 0
+    for init_pos in initial_positions:
+        print(i)
+        i += 1
+        s = (init_pos, 0)
+        while not domain.terminal_state(s):
+            a = agent.chose_action(s)
+            r = domain.reward(s, a)
+            next_s = domain.dynamic(s, a)
+            trajectory.append((s, a, r, next_s))
+            s = next_s
+    return trajectory
+
+
+if __name__ == "__main__":
+    domain = domain()
+    agent = agent_random()
+    trajectory = offline(60, domain, agent)
+    Q_reg = stop_rule_2(0.02, domain, trajectory, 1)
+    Q_dis = discret_Q(Q_reg, 0.01)
+    display_colored_grid(Q_dis[0])
+    display_colored_grid(Q_dis[1])
