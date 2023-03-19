@@ -54,29 +54,38 @@ class domain:
         g = 9.81
         next_p = state[0]
         next_s = state[1]
-        nbr_int_step = int(self.time_step/self.integration_step)
+        nbr_int_step = int(self.time_step / self.integration_step)
         for i in range(nbr_int_step):
             s = next_s
             p = next_p
             s_d = (action / (m * (1 + pow(self.hill_d(p), 2)))) - ((g * self.hill_d(p)) / (1 + pow(self.hill_d(p), 2))) \
-                - ((pow(s, 2) * self.hill_d(p) * self.hill_dd(p)) / (1 + pow(self.hill_d(p), 2)))
+                  - ((pow(s, 2) * self.hill_d(p) * self.hill_dd(p)) / (1 + pow(self.hill_d(p), 2)))
             p_d = s
             next_p = p + self.integration_step * p_d
             next_s = s + self.integration_step * s_d
         return next_p, next_s
 
 
+class agent_decelerate:
+    def __init__(self):
+        pass
+
+    def chose_action(self, state):
+        return -4
+
+
 if __name__ == "__main__":
     s = (-0.1, 0.1)
     domain = domain(s[0], s[1])
+    agent = agent_decelerate()
     trajectory = []
     while not domain.terminal_state(s):
         # policy is always accelerate
-        a = -4
+        a = agent.chose_action(s)
         r = domain.reward(s, a)
         next_s = domain.dynamic(s, a)
         trajectory.append([s, a, r, next_s])
         s = next_s
     for traj in trajectory:
         print(traj)
-    print(len(trajectory))
+    print('length of the trajectory = ', len(trajectory))
