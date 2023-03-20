@@ -105,14 +105,18 @@ def fitted_Q(Q, N, trajectory, tech):
 
 
 def discret_Q(Q_regr, resolution):
-    speed_step = int(6 / resolution)
-    spatial_step = int(2 / resolution)
-    Q_grid = np.zeros((2, spatial_step, speed_step))
+    p_array = np.arange(-1, 1, 0.01)
+    s_array = np.arange(-3, 3, 0.01)
+    Q_grid = np.zeros((2, p_array.shape[0], s_array.shape[0]))
     print("discrete_Q")
-    for i in tqdm(range(spatial_step)):  # for the speed
-        for j in range(speed_step):  # for the position
-            Q_grid[0][i][j] = Q_regr.predict([[i, j, -4]])
-            Q_grid[1][i][j] = Q_regr.predict([[i, j, 4]])
+    i = 0
+    for p in tqdm(p_array):
+        j = 0# for the speed
+        for s in s_array:  # for the position
+            Q_grid[0][i][j] = Q_regr.predict([[p, s, -4]])[0]
+            Q_grid[1][i][j] = Q_regr.predict([[p, s, 4]])[0]
+            j += 1
+        i += 1
     return Q_grid
 
 
@@ -142,7 +146,7 @@ def display_colored_grid(Q_grid):
 
     figure, axes = plt.subplots()
     Q_plot = np.swapaxes(Q_grid, 0, 1)
-    c = axes.pcolormesh(p_list, s_list, Q_plot, cmap='bwr', vmin=l_c, vmax=r_c, shading='auto')
+    c = axes.pcolormesh(p_list, s_list, Q_plot, cmap='bwr_r', vmin=l_c, vmax=r_c, shading='auto')
     # axes.set_title(title)
     axes.axis([l_a, r_a, l_b, r_b])
     axes.set_xlabel("Position")
@@ -212,8 +216,8 @@ def offline(nbr_episodes, domain, agent):
 if __name__ == "__main__":
     domain = domain()
     agent = agent_random()
-    trajectory = offline(60, domain, agent)
-    Q_reg = stop_rule_2(0.02, domain, trajectory, 1)
-    Q_dis = discret_Q(Q_reg, 0.01)
+    trajectory = offline(20, domain, agent)
+    Q_reg = stop_rule_2(1, domain, trajectory, 1)
+    Q_dis = discret_Q(Q_reg, 0.05)
     display_colored_grid(Q_dis[0])
     display_colored_grid(Q_dis[1])
