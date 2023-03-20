@@ -107,8 +107,8 @@ def fitted_Q(Q, N, trajectory, tech):
 
 
 def discret_Q(Q_regr, resolution):
-    p_array = np.arange(-1, 1, 0.01)
-    s_array = np.arange(-3, 3, 0.01)
+    p_array = np.arange(-1, 1, resolution)
+    s_array = np.arange(-3, 3, resolution)
     Q_grid = np.zeros((2, p_array.shape[0], s_array.shape[0]))
     print("discrete_Q")
     i = 0
@@ -123,8 +123,8 @@ def discret_Q(Q_regr, resolution):
 
 
 def dicret_policy(Q_grid):
-    spatial_step = Q_grid.shape[0]
-    speed_step = Q_grid.shape[1]
+    spatial_step = Q_grid.shape[1]
+    speed_step = Q_grid.shape[2]
     policy_grid = np.zeros((spatial_step, speed_step))
     for i in tqdm(range(spatial_step)):  # for the speed
         for j in range(speed_step):  # for the position
@@ -148,7 +148,7 @@ def display_colored_grid(Q_grid):
 
     figure, axes = plt.subplots()
     Q_plot = np.swapaxes(Q_grid, 0, 1)
-    c = axes.pcolormesh(p_list, s_list, Q_plot, cmap='bwr_r', vmin=l_c, vmax=r_c, shading='auto')
+    c = axes.pcolormesh(p_list, s_list, Q_plot, cmap='bwr', vmin=l_c, vmax=r_c, shading='auto')
     # axes.set_title(title)
     axes.axis([l_a, r_a, l_b, r_b])
     axes.set_xlabel("Position")
@@ -198,7 +198,24 @@ class agent_random:
             return 4
 
 
-def offline(nbr_episodes, domain, agent):
+def offline_1(nbr_episodes, domain, agent):
+    trajectory = []
+    initial_positions = np.random.uniform(-0.1, 0.1, nbr_episodes)
+    i = 0
+    for init_pos in initial_positions:
+        print(i)
+        i += 1
+        s = (init_pos, 0)
+        while not domain.terminal_state(s):
+            a = agent.chose_action(s)
+            r = domain.reward(s, a)
+            next_s = domain.dynamic(s, a)
+            trajectory.append((s, a, r, next_s))
+            s = next_s
+    return trajectory
+
+
+def offline_2(nbr_episodes, domain, agent):
     trajectory = []
     initial_positions = np.random.uniform(-1, 1, nbr_episodes)
     i = 0
@@ -217,9 +234,17 @@ def offline(nbr_episodes, domain, agent):
 if __name__ == "__main__":
     domain = domain()
     agent = agent_random()
-    trajectory = offline(60, domain, agent)
-    Q_reg = stop_rule_2(1, domain, trajectory, 1)
-    Q_dis = discret_Q(Q_reg, 0.05)
+    trajectory = offline_2(50, domain, agent)
+    Q_reg = stop_rule_2(0.01, domain, trajectory, 1)
+    Q_dis = discret_Q(Q_reg, 0.01)
+    policy = dicret_policy(Q_dis)
+    display_colored_grid(Q_dis[0])
+    display_colored_grid(Q_dis[1])
+    display_colored_grid(policy)
+
+    trajectory = offline_1(50, domain, agent)
+    Q_reg = stop_rule_2(0.01, domain, trajectory, 1)
+    Q_dis = discret_Q(Q_reg, 0.01)
     policy = dicret_policy(Q_dis)
     display_colored_grid(Q_dis[0])
     display_colored_grid(Q_dis[1])
