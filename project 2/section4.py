@@ -32,13 +32,13 @@ class domain:
     def hill_d(p):
         if p < 0:
             return 2 * p + 1
-        return 1 / (1 + 5 * (p ** 2)) ** 1.5
+        return 1 / ((1 + 5 * (p ** 2)) ** 1.5)
 
     @staticmethod
     def hill_dd(p):
         if p < 0:
             return 2
-        return (-20 * p) / 3 * (1 + 5 * p ** 2) ** (5 / 3)
+        return (-20 * p) / (3 * (1 + 5 * p ** 2) ** (5 / 2))
 
     @staticmethod
     def terminal_state(state):
@@ -55,7 +55,9 @@ class domain:
         for i in range(nbr_int_step):
             s = next_s
             p = next_p
-            s_d = (action - (g * self.hill_d(p)) - (self.hill_d(p) * self.hill_dd(p) * s **2)) / (1 + self.hill_d(p)**2)
+            hill_d = self.hill_d(p)
+            deno = (1 + self.hill_d(p) ** 2)
+            s_d = (action - (g * hill_d) - (hill_d * self.hill_dd(p) * s ** 2)) / deno
             p_d = s
             next_p = p + self.integration_step * p_d
             next_s = s + self.integration_step * s_d
@@ -198,7 +200,7 @@ class agent_random:
 
 def offline(nbr_episodes, domain, agent):
     trajectory = []
-    initial_positions = np.random.uniform(-0.1, 0.1, nbr_episodes)
+    initial_positions = np.random.uniform(-1, 1, nbr_episodes)
     i = 0
     for init_pos in initial_positions:
         print(i)
@@ -212,12 +214,13 @@ def offline(nbr_episodes, domain, agent):
             s = next_s
     return trajectory
 
-
 if __name__ == "__main__":
     domain = domain()
     agent = agent_random()
-    trajectory = offline(20, domain, agent)
+    trajectory = offline(60, domain, agent)
     Q_reg = stop_rule_2(1, domain, trajectory, 1)
     Q_dis = discret_Q(Q_reg, 0.05)
+    policy = dicret_policy(Q_dis)
     display_colored_grid(Q_dis[0])
     display_colored_grid(Q_dis[1])
+    display_colored_grid(policy)
