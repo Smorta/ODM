@@ -159,19 +159,20 @@ def display_colored_grid(Q_grid):
 
 
 def stop_rule_1(epsilon, trajectory, tech):
-    Q_prev = np.zeros((2, 20, 60))
     print("enter sr1")
-    Q_reg = fitted_Q(None, 1, trajectory, tech)
+    Q = fitted_Q(None, 1, trajectory, tech)
 
-    Q_dis = discret_Q(Q_reg, 0.1)
     N = 1
-    while np.amax(Q_dis - Q_prev) > epsilon:
-        print(np.amax(Q_dis - Q_prev))
+    while True:
         N += 1
-        Q_prev = Q_dis.copy()
-        Q_reg = fitted_Q(Q_reg, N, trajectory, tech)
-        Q_dis = discret_Q(Q_reg, 0.1)
-    return Q_reg
+        Q_next = fitted_Q(Q, N, trajectory, tech)
+        indexes = random.sample(range(0, len(trajectory)), 1000)
+        pred_Q_next = Q_next.predict(trajectory[indexes])
+        pred_Q = Q.predict(trajectory[indexes])
+        if np.amax(pred_Q - pred_Q_next) > epsilon:
+            break
+        Q = Q_next
+    return Q_next
 
 
 def stop_rule_2(epsilon, domain, trajectory, tech):
@@ -235,7 +236,7 @@ if __name__ == "__main__":
     domain = domain()
     agent = agent_random()
     trajectory = offline_2(50, domain, agent)
-    Q_reg = stop_rule_2(0.01, domain, trajectory, 1)
+    Q_reg = stop_rule_2(0.01, domain, trajectory, 2)
     Q_dis = discret_Q(Q_reg, 0.01)
     policy = dicret_policy(Q_dis)
     display_colored_grid(Q_dis[0])
@@ -243,7 +244,7 @@ if __name__ == "__main__":
     display_colored_grid(policy)
 
     trajectory = offline_1(50, domain, agent)
-    Q_reg = stop_rule_2(0.01, domain, trajectory, 1)
+    Q_reg = stop_rule_2(0.01, domain, trajectory, 2)
     Q_dis = discret_Q(Q_reg, 0.01)
     policy = dicret_policy(Q_dis)
     display_colored_grid(Q_dis[0])
