@@ -1,6 +1,7 @@
 import math
 import numpy as np
-
+from matplotlib import pyplot as plt
+from tqdm import tqdm
 
 class domain:
     def __init__(self):
@@ -28,13 +29,13 @@ class domain:
     def hill_d(p):
         if p < 0:
             return 2 * p + 1
-        return 1 / (1 + 5 * (p ** 2)) ** 1.5
+        return 1 / ((1 + 5 * (p ** 2)) ** 1.5)
 
     @staticmethod
     def hill_dd(p):
         if p < 0:
             return 2
-        return (-20 * p) / 3 * (1 + 5 * p ** 2) ** (5 / 3)
+        return (-20 * p) / (3 * (1 + 5 * p ** 2) ** (5 / 2))
 
     @staticmethod
     def terminal_state(state):
@@ -43,7 +44,6 @@ class domain:
         return abs(position) >= 1 or abs(speed) >= 3
 
     def dynamic(self, state, action):
-        m = 1
         g = 9.81
         next_p = state[0]
         next_s = state[1]
@@ -51,12 +51,14 @@ class domain:
         for i in range(nbr_int_step):
             s = next_s
             p = next_p
-            s_d = (action / (m * (1 + pow(self.hill_d(p), 2)))) - ((g * self.hill_d(p)) / (1 + pow(self.hill_d(p), 2))) \
-                  - ((pow(s, 2) * self.hill_d(p) * self.hill_dd(p)) / (1 + pow(self.hill_d(p), 2)))
+            hill_d = self.hill_d(p)
+            deno = (1 + self.hill_d(p) ** 2)
+            s_d = (action - (g * hill_d) - (hill_d * self.hill_dd(p) * s ** 2)) / deno
             p_d = s
             next_p = p + self.integration_step * p_d
             next_s = s + self.integration_step * s_d
         return next_p, next_s
+
 
 class agent_decelerate:
     def __init__(self):
@@ -110,8 +112,7 @@ def monte_carlo_J(domain, agent, nbr_state, N):
     start_list = np.random.uniform(-0.1, 0.1, nbr_state)
     J_tot = np.zeros(N)
 
-    for i in range(nbr_state):
-        print("|", end='')
+    for i in tqdm(range(len(start_list))):
         s = (start_list[i], 0)
         J = compute_J(s, domain, agent, N)
         J_tot = J_tot + J
@@ -119,24 +120,20 @@ def monte_carlo_J(domain, agent, nbr_state, N):
     return J_tot / nbr_state
 
 
-def max_number_of_steps(J, N, nbr_state):
-    max_n = N
-    for j in range(N - 1, 0):
-        if J[j] == 0:
-            if max_n > j:
-                max_n = j + 1
-        else:
-            break
-    return max_n
+def plot_J(J):
+    plt.figure()
+    plt.plot(J)
+    plt.xlabel('N')
+    plt.ylabel(r'$J_N^{\mu}$')
+    plt.grid()
+    plt.show()
+
 
 
 if __name__ == "__main__":
     domain = domain()
-    agent = agent_random()
-    N = 400
+    agent = agent_accelerate()
+    N = 200
     nbr_start = 50
     J = monte_carlo_J(domain, agent, nbr_start, N)
-    max_step = max_number_of_steps(J, N, nbr_start)
-    print(J)
-    print(max_step)
-
+    plot_J(J)
