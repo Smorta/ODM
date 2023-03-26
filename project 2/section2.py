@@ -129,11 +129,10 @@ def plot_J(J):
     plt.show()
 
 
-
 if __name__ == "__main__":
     domain = domain()
-    agent = agent_accelerate()
-    N = 200
+    agent = agent_random()
+    N = 400
     nbr_start = 50
     J = monte_carlo_J(domain, agent, nbr_start, N)
     plot_J(J)

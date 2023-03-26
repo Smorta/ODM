@@ -32,7 +32,7 @@ def sup_learning_tech(X, y, tech=0):
     elif tech == 1:
         return ExtraTreesRegressor(n_estimators=10).fit(X, y)  # We can change number of estimators, currently = 100
     elif tech == 2:
-        return MLPRegressor(hidden_layer_sizes=(10, 20, 10), activation='tanh').fit(X, y)  # Change the intern structure here
+        return MLPRegressor(hidden_layer_sizes=(10, 20, 20, 20, 10), max_iter=800, activation='tanh').fit(X, y)  # Change the intern structure here
     else:
         print("Error")
         return 0
@@ -111,25 +111,33 @@ def display_colored_grid(Q_grid):
     plt.show()
 
 
-def stop_rule_1(epsilon, trajectory, tech):
-    Q_prev = np.zeros((2, 20, 60))
-    Q_reg = fitted_Q(None, 1, trajectory, tech)
+def norm_inf_Q(Q_reg, Q_old_reg, state_list):
+    diff = np.zeros((len(state_list)))
+    for i in range(len(state_list)):
+        state = state_list[i]
+        diff[i] = Q_reg.predict([[state[0][0], state[0][1], state[1]]])[0] - Q_old_reg.predict([[state[0][0], state[0][1], state[1]]])[0]
+    norm_inf = abs(np.max(diff))
+    return norm_inf
 
-    Q_dis = discret_Q(Q_reg, 0.1)
-    N = 1
-    while np.amax(Q_dis - Q_prev) > epsilon:
-        print(np.amax(Q_dis - Q_prev))
-        N += 1
-        Q_prev = Q_dis.copy()
+
+def stop_rule_1(epsilon, N_max, trajectory, tech):
+    Q_old_reg = fitted_Q(None, 1, trajectory, tech)
+    Q_reg = fitted_Q(Q_old_reg, 2, trajectory, tech)
+    norm_inf = norm_inf_Q(Q_reg, Q_old_reg, trajectory)
+    N = 3
+    while epsilon < norm_inf and N < N_max:
+        print(N)
+        Q_old_reg = Q_reg
         Q_reg = fitted_Q(Q_reg, N, trajectory, tech)
-        Q_dis = discret_Q(Q_reg, 0.1)
+        norm_inf = norm_inf_Q(Q_reg, Q_old_reg, trajectory)
+        N += 1
     return Q_reg
 
 
 def stop_rule_2(epsilon, domain, trajectory, tech):
     Q_reg = fitted_Q(None, 1, trajectory, tech)
     Br = 1  # maximum reward
-    Optimalstep = math.log(epsilon * (1 - domain.gamma) / Br, domain.gamma)
+    Optimalstep = math.log(epsilon * ((1 - domain.gamma) ** 2) / (2 * Br), domain.gamma)
     steps = int(Optimalstep)
     N = 1
     for i in tqdm(range(steps)):
@@ -182,8 +190,8 @@ if __name__ == "__main__":
     domain = domain()
     agent_rand = agent_random()
 
-    trajectory = offline_2(100, domain, agent_rand)
-    Q_reg = stop_rule_2(0.01, domain, trajectory, 2)
+    trajectory = offline_2(60, domain, agent_rand)
+    Q_reg = stop_rule_2(0.1, domain, trajectory, 2)
     Q_dis = discret_Q(Q_reg, 0.01)
     policy = dicret_policy(Q_dis)
     display_colored_grid(Q_dis[0])
@@ -193,8 +201,8 @@ if __name__ == "__main__":
     J = monte_carlo_J(domain, agent_q, 50, 400)[-1]
     print('\nJ=', J, '\n')
 
-    trajectory = offline_1(100, domain, agent_rand)
-    Q_reg = stop_rule_2(0.01, domain, trajectory, 2)
+    trajectory = offline_1(60, domain, agent_rand)
+    Q_reg = stop_rule_2(0.01, domain, trajectory, 2 )
     Q_dis = discret_Q(Q_reg, 0.01)
     policy = dicret_policy(Q_dis)
     display_colored_grid(Q_dis[0])
