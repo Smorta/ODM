@@ -5,61 +5,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.neural_network import MLPRegressor
 from tqdm import tqdm
-
-class domain:
-    def __init__(self):
-        self.gamma = 0.95
-        self.time_step = 0.1
-        self.integration_step = 0.001
-        self.actions = [-4, 4]
-
-    def reward(self, state, action):
-        next_p, next_s = self.dynamic(state, action)
-        if next_p < -1 or next_s > 3:
-            return -1
-        if next_p > 1 and next_s <= 3:
-            return 1
-        else:
-            return 0
-
-    @staticmethod
-    def hill(p):
-        if p < 0:
-            return pow(p, 2) + p
-        return math.sqrt(1 + 5 * pow(p, 2))
-
-    @staticmethod
-    def hill_d(p):
-        if p < 0:
-            return 2 * p + 1
-        return 1 / (1 + 5 * (p ** 2)) ** 1.5
-
-    @staticmethod
-    def hill_dd(p):
-        if p < 0:
-            return 2
-        return (-20 * p) / 3 * (1 + 5 * p ** 2) ** (5 / 3)
-
-    @staticmethod
-    def terminal_state(state):
-        position = state[0]
-        speed = state[1]
-        return abs(position) >= 1 or abs(speed) >= 3
-
-    def dynamic(self, state, action):
-        m = 1
-        g = 9.81
-        next_p = state[0]
-        next_s = state[1]
-        nbr_int_step = int(self.time_step / self.integration_step)
-        for i in range(nbr_int_step):
-            s = next_s
-            p = next_p
-            s_d = (action - (g * self.hill_d(p)) - (self.hill_d(p) * self.hill_dd(p) * s **2)) / (1 + self.hill_d(p)**2)
-            p_d = s
-            next_p = p + self.integration_step * p_d
-            next_s = s + self.integration_step * s_d
-        return next_p, next_s
+from section2 import monte_carlo_J, domain
 
 
 class agent_accelerate:
@@ -70,13 +16,23 @@ class agent_accelerate:
         return 4
 
 
+class agent_Q:
+    def __init__(self, Q):
+        self.Q = Q
+
+    def chose_action(self, state):
+        if self.Q.predict([[state[0], state[1], 4]])[0] > self.Q.predict([[state[0], state[1], -4]])[0]:
+            return 4
+        return -4
+
+
 def sup_learning_tech(X, y, tech=0):
     if tech == 0:
         return LinearRegression().fit(X, y)
     elif tech == 1:
         return ExtraTreesRegressor(n_estimators=10).fit(X, y)  # We can change number of estimators, currently = 100
     elif tech == 2:
-        return MLPRegressor(hidden_layer_sizes=(10, 20, 20, 10), activation='relu', max_iter=800).fit(X, y)  # Change the intern structure here
+        return MLPRegressor(hidden_layer_sizes=(10, 20, 20, 20, 10), max_iter=800, activation='tanh').fit(X, y)  # Change the intern structure here
     else:
         print("Error")
         return 0
@@ -105,10 +61,9 @@ def fitted_Q(Q, N, trajectory, tech):
 
 
 def discret_Q(Q_regr, resolution):
-    p_array = np.arange(-1, 1, 0.01)
-    s_array = np.arange(-3, 3, 0.01)
+    p_array = np.arange(-1, 1, resolution)
+    s_array = np.arange(-3, 3, resolution)
     Q_grid = np.zeros((2, p_array.shape[0], s_array.shape[0]))
-    print("discrete_Q")
     i = 0
     for p in tqdm(p_array):
         j = 0# for the speed
@@ -121,8 +76,8 @@ def discret_Q(Q_regr, resolution):
 
 
 def dicret_policy(Q_grid):
-    spatial_step = Q_grid.shape[0]
-    speed_step = Q_grid.shape[1]
+    spatial_step = Q_grid.shape[1]
+    speed_step = Q_grid.shape[2]
     policy_grid = np.zeros((spatial_step, speed_step))
     for i in tqdm(range(spatial_step)):  # for the speed
         for j in range(speed_step):  # for the position
@@ -146,7 +101,7 @@ def display_colored_grid(Q_grid):
 
     figure, axes = plt.subplots()
     Q_plot = np.swapaxes(Q_grid, 0, 1)
-    c = axes.pcolormesh(p_list, s_list, Q_plot, cmap='bwr_r', vmin=l_c, vmax=r_c, shading='auto')
+    c = axes.pcolormesh(p_list, s_list, Q_plot, cmap='bwr', vmin=l_c, vmax=r_c, shading='auto')
     # axes.set_title(title)
     axes.axis([l_a, r_a, l_b, r_b])
     axes.set_xlabel("Position")
@@ -156,26 +111,33 @@ def display_colored_grid(Q_grid):
     plt.show()
 
 
-def stop_rule_1(epsilon, trajectory, tech):
-    Q_prev = np.zeros((2, 20, 60))
-    print("enter sr1")
-    Q_reg = fitted_Q(None, 1, trajectory, tech)
+def norm_inf_Q(Q_reg, Q_old_reg, state_list):
+    diff = np.zeros((len(state_list)))
+    for i in range(len(state_list)):
+        state = state_list[i]
+        diff[i] = Q_reg.predict([[state[0][0], state[0][1], state[1]]])[0] - Q_old_reg.predict([[state[0][0], state[0][1], state[1]]])[0]
+    norm_inf = abs(np.max(diff))
+    return norm_inf
 
-    Q_dis = discret_Q(Q_reg, 0.1)
-    N = 1
-    while np.amax(Q_dis - Q_prev) > epsilon:
-        print(np.amax(Q_dis - Q_prev))
-        N += 1
-        Q_prev = Q_dis.copy()
+
+def stop_rule_1(epsilon, N_max, trajectory, tech):
+    Q_old_reg = fitted_Q(None, 1, trajectory, tech)
+    Q_reg = fitted_Q(Q_old_reg, 2, trajectory, tech)
+    norm_inf = norm_inf_Q(Q_reg, Q_old_reg, trajectory)
+    N = 3
+    while epsilon < norm_inf and N < N_max:
+        print(N)
+        Q_old_reg = Q_reg
         Q_reg = fitted_Q(Q_reg, N, trajectory, tech)
-        Q_dis = discret_Q(Q_reg, 0.1)
+        norm_inf = norm_inf_Q(Q_reg, Q_old_reg, trajectory)
+        N += 1
     return Q_reg
 
 
 def stop_rule_2(epsilon, domain, trajectory, tech):
     Q_reg = fitted_Q(None, 1, trajectory, tech)
     Br = 1  # maximum reward
-    Optimalstep = math.log(epsilon * (1 - domain.gamma) / Br, domain.gamma)
+    Optimalstep = math.log(epsilon * ((1 - domain.gamma) ** 2) / (2 * Br), domain.gamma)
     steps = int(Optimalstep)
     N = 1
     for i in tqdm(range(steps)):
@@ -196,14 +158,25 @@ class agent_random:
             return 4
 
 
-def offline(nbr_episodes, domain, agent):
+def offline_1(nbr_episodes, domain, agent):
     trajectory = []
     initial_positions = np.random.uniform(-0.1, 0.1, nbr_episodes)
-    i = 0
-    for init_pos in initial_positions:
-        print(i)
-        i += 1
+    for init_pos in tqdm(initial_positions):
         s = (init_pos, 0)
+        while not domain.terminal_state(s):
+            a = agent.chose_action(s)
+            r = domain.reward(s, a)
+            next_s = domain.dynamic(s, a)
+            trajectory.append((s, a, r, next_s))
+            s = next_s
+    return trajectory
+
+
+def offline_2(nbr_episodes, domain, agent):
+    trajectory = []
+    initial_positions = np.random.uniform(-1, 1, nbr_episodes)
+    for i in tqdm(range(nbr_episodes)):
+        s = (initial_positions[i], 0)
         while not domain.terminal_state(s):
             a = agent.chose_action(s)
             r = domain.reward(s, a)
@@ -215,9 +188,26 @@ def offline(nbr_episodes, domain, agent):
 
 if __name__ == "__main__":
     domain = domain()
-    agent = agent_random()
-    trajectory = offline(20, domain, agent)
-    Q_reg = stop_rule_2(1, domain, trajectory, 1)
-    Q_dis = discret_Q(Q_reg, 0.05)
+    agent_rand = agent_random()
+
+    trajectory = offline_2(60, domain, agent_rand)
+    Q_reg = stop_rule_2(0.1, domain, trajectory, 2)
+    Q_dis = discret_Q(Q_reg, 0.01)
+    policy = dicret_policy(Q_dis)
     display_colored_grid(Q_dis[0])
     display_colored_grid(Q_dis[1])
+    display_colored_grid(policy)
+    agent_q = agent_Q(Q_reg)
+    J = monte_carlo_J(domain, agent_q, 50, 400)[-1]
+    print('\nJ=', J, '\n')
+
+    trajectory = offline_1(60, domain, agent_rand)
+    Q_reg = stop_rule_2(0.01, domain, trajectory, 2 )
+    Q_dis = discret_Q(Q_reg, 0.01)
+    policy = dicret_policy(Q_dis)
+    display_colored_grid(Q_dis[0])
+    display_colored_grid(Q_dis[1])
+    display_colored_grid(policy)
+    agent_q = agent_Q(Q_reg)
+    J = monte_carlo_J(domain, agent_q, 50, 400)[-1]
+    print('\nJ=', J, '\n')

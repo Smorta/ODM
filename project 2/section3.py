@@ -188,7 +188,7 @@ if __name__ == "__main__":
     t = time.time()
     s = (-0.1, 0)
     domain = domain()
-    agent = agent_random()
+    agent = agent_accelerate()
     i = 0
     while not domain.terminal_state(s):
         pos = s[0]
