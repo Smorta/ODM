@@ -191,7 +191,7 @@ if __name__ == "__main__":
     agent_rand = agent_random()
 
     trajectory = offline_2(60, domain, agent_rand)
-    Q_reg = stop_rule_2(0.1, domain, trajectory, 2)
+    Q_reg = stop_rule_2(0.01, domain, trajectory, 2)
     Q_dis = discret_Q(Q_reg, 0.01)
     policy = dicret_policy(Q_dis)
     display_colored_grid(Q_dis[0])
@@ -202,7 +202,7 @@ if __name__ == "__main__":
     print('\nJ=', J, '\n')
 
     trajectory = offline_1(60, domain, agent_rand)
-    Q_reg = stop_rule_2(0.01, domain, trajectory, 2 )
+    Q_reg = stop_rule_2(0.01, domain, trajectory, 2)
     Q_dis = discret_Q(Q_reg, 0.01)
     policy = dicret_policy(Q_dis)
     display_colored_grid(Q_dis[0])
