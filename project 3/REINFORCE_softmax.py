@@ -4,7 +4,7 @@ import numpy as np
 import gymnasium as gym
 from tqdm import tqdm
 
-EPOCHS = 10000
+EPOCHS = 20000
 ALPHA = 0.001
 GAMMA = 0.99
 #DISC_STEP = [2, 5, 10, 20]
@@ -16,11 +16,13 @@ def make_trajectory(env, theta, size=1000):
     s = env.reset()[0]
     for _ in range(size):
         pi = policy(s, theta)
-        actions = np.linspace(-3, 3, DISC_STEP) # discrete actions
+        #actions = np.linspace(-3, 3, DISC_STEP) # discrete actions
+        #actions = np.array([-3, -2, -1.5, -1, -0.75, -0.5, -0.25, -0.1, 0, 0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 3])
+        actions = np.array([-3, -1.5, -0.75, -0.1, 0, 0.1, 0.75, 1.5, 3])
+
         action = [np.random.choice(actions , p=pi)]
 
         index = np.where(actions == action)[0][0]
-
         next_s, r, terminated, truncated, info = env.step(action)
         epoch = [s, action, r]
         trajectory.append(epoch)
@@ -44,7 +46,7 @@ def policy_grad(policy):
 
 
 hyp_tune = []
-for DISC_STEP in [3, 5, 7, 9, 12]:
+for DISC_STEP in [9]:
     env = gym.make("InvertedPendulum-v4", render_mode= None)
 
     theta = np.random.rand(4, DISC_STEP)
@@ -64,16 +66,17 @@ for DISC_STEP in [3, 5, 7, 9, 12]:
 # Calculate the mean along the second axis (column-wise) to get the reduced array
 
 plt.figure()
-plt.plot(hyp_tune[0], label='3')
-plt.plot(hyp_tune[1], label='5')
-plt.plot(hyp_tune[2], label='7')
-plt.plot(hyp_tune[3], label='9')
-plt.plot(hyp_tune[4], label='12')
+plt.plot(hyp_tune[0], label='Custom discretization')
+# plt.plot(hyp_tune[1], label='5')
+# plt.plot(hyp_tune[2], label='7')
+# plt.plot(hyp_tune[3], label='9')
+# plt.plot(hyp_tune[4], label='12')
 plt.grid()
 plt.xlabel('Epochs', fontsize=16)
 plt.ylabel('Mean Trajectory Length', fontsize=16)
 plt.text(0.9, -0.1, "x100", transform=plt.gca().transAxes, fontsize=10)
 plt.legend()
+plt.savefig('REINFORCE_softmax_disc-cust2.png')
 plt.show()
 
     
