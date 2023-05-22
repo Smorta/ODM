@@ -1,15 +1,16 @@
+# Custom imports
 import utils
 
-import math
 import numpy as np
+from tqdm import tqdm
+import gymnasium as gym
+import os
+
 from torch.utils.tensorboard import SummaryWriter
 import torch as T
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from tqdm import tqdm
-import gymnasium as gym
-import os
 
 
 class QNetwork(nn.Module):
@@ -23,8 +24,8 @@ class QNetwork(nn.Module):
         self.checkpoint_dir = chkpt_dir
         self.checkpoint_file = os.path.join(self.checkpoint_dir, name + '_dqn')
 
-        self.fc1 = nn.Linear(self.input_size, self.hidden_size*2)
-        self.fc2 = nn.Linear(self.hidden_size*2, self.hidden_size)
+        self.fc1 = nn.Linear(self.input_size, self.hidden_size * 2)
+        self.fc2 = nn.Linear(self.hidden_size * 2, self.hidden_size)
         self.fc3 = nn.Linear(self.hidden_size, self.hidden_size)
         self.fc3 = nn.Linear(self.hidden_size, self.output_size)
 
@@ -114,7 +115,7 @@ class DQN:
 
             if terminated or truncated:
                 break
-        return score, step, mean_loss/step
+        return score, step, mean_loss / step
 
     def train(self, n_episodes=100):
         writer = SummaryWriter()
@@ -181,11 +182,10 @@ class DQN:
         self.Q_target.load_state_dict(Q_target_dict)
 
     def render(self, mode):
-        self.env = gym.make(self.emv_name, render_mode=mode)
+        self.env = gym.make(self.env_name, render_mode=mode)
 
 
 if __name__ == "__main__":
     Dqn = DQN(alpha=0.001, tau=0.005, env_name='InvertedDoublePendulum-v4',
               gamma=0.99, max_size=10000, batch_size=128, hidden_size=128)
     Dqn.train(10000)
-
