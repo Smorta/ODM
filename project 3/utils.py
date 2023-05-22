@@ -1,29 +1,49 @@
 import numpy as np
 
 
-class OUNoise():
+class OUNoise:
     """ The OUNoise class implements the Ornstein-Uhlenbeck process,
      which is a stochastic differential equation used for generating correlated
      random noise. This class provides a way to generate noise with specific
      parameters such as mean, standard deviation, and correlation.
     """
-    def __init__(self, mu, sigma=0.15, theta=0.2, dt=1e-2, x0=None):
+    def __init__(self, mu, sigma=0.05, theta=0.2, x0=0):
         self.mu = mu
         self.sigma = sigma
         self.theta = theta
-        self.dt = dt
         self.x0 = x0
+        self.x = np.zeros(mu.shape)
         self.reset()
 
     def __call__(self):
-        x = self.x_prev + self.theta * (self.mu - self.x_prev) * self.dt + \
-            self.sigma * np.sqrt(self.dt) * np.random.normal(size=self.mu.shape)
-        self.x_prev = x
+        """ Updates the noise and returns the new value.
 
-        return x
+        Parameters:
+        ----------
+        None
+
+        Returns:
+        -------
+        The new value of the noise. -> np.array
+        """
+        self.x = self.x + self.theta * (self.mu - self.x) + self.sigma * np.random.normal(size=self.mu.shape)
+        return self.x
+
+    def add_noise(self, action):
+        """Adds noise to the given action.
+
+        Parameters:
+        ----------
+        action: The action to add noise to. -> np.array
+
+        Returns:
+        -------
+        The action with noise added. -> np.array
+        """
+        return action + self()
 
     def reset(self):
-        self.x_prev = self.x0 if self.x0 is not None else np.zeros_like(self.mu)
+        self.x = self.x0
 
 
 class ReplayBuffer:
@@ -43,11 +63,11 @@ class ReplayBuffer:
 
         Parameters:
         ----------
-        state: The current state.
-        action: The action taken in the current state.
-        reward: The reward received for taking the action.
-        next_state: The resulting state after taking the action.
-        done: A boolean indicating whether the episode has terminated.
+        state: The current state. -> np.array
+        action: The action taken in the current state. -> np.array
+        reward: The reward received for taking the action. -> float
+        next_state: The resulting state after taking the action. -> np.array
+        done: A boolean indicating whether the episode has terminated. -> bool
 
         Returns:
         -------
@@ -67,14 +87,16 @@ class ReplayBuffer:
         """Randomly samples a batch of experiences from the replay buffer.
 
         Parameters:
-        batch_size: The number of experiences to sample.
+        ----------
+        batch_size: The number of experiences to sample. -> int
 
         Returns:
-        states: An array of sampled states.
-        actions: An array of sampled actions.
-        rewards: An array of sampled rewards.
-        next_states: An array of sampled next states.
-        dones: An array of sampled termination statuses.
+        -------
+        states: An array of sampled states. -> np.array(shape=(batch_size, n_states))
+        actions: An array of sampled actions. -> np.array(shape=(batch_size, n_actions))
+        rewards: An array of sampled rewards. -> np.array(shape=(batch_size,))
+        next_states: An array of sampled next states. -> np.array(shape=(batch_size, n_states))
+        dones: An array of sampled termination statuses. -> np.array(shape=(batch_size,))
         """
         idx = np.random.choice(self.used_size, batch_size, replace=False)
 
