@@ -34,6 +34,14 @@ class DDPG:
         self.actor = Network(self.alpha_actor, self.Nbr_features, hidden_size, self.Nbr_action, name='Actor')
         self.critic = Network(self.alpha_critic, self.Nbr_features + self.Nbr_action, hidden_size, 1, name='Critic')
 
+        # Implementing target networks
+        self.target_actor = Network(self.alpha_actor, self.Nbr_features, hidden_size, self.Nbr_action, name='TargetActor')
+        self.target_critic = Network(self.alpha_critic, self.Nbr_features + self.Nbr_action, hidden_size, 1, name='TargetCritic')
+        
+        # Initialize target networks with the same weights as the original networks
+        self.target_actor.load_state_dict(self.actor.state_dict())
+        self.target_critic.load_state_dict(self.critic.state_dict())
+
     def save_models(self):
         self.actor.save_checkpoint()
         self.critic.save_checkpoint()
@@ -70,11 +78,19 @@ class DDPG:
 
         Q_values = self.critic.forward(T.hstack((states, actions)))
         # Calculate the target Q-values using immediate rewards and discounted maximum Q-value of next states
-        next_action = self.actor.forward(next_state)
+        # MATTEO : faux je crois, il faut utiliser les target networks
+        next_action = self.actor.forward(next_state) 
         next_input = T.hstack((next_state, next_action))
         next_q = self.gamma * self.critic.forward(next_input)
         target = rewards.unsqueeze(1) + next_q * (1 - dones.unsqueeze(1))
         target = target
+         
+        ## ----- IMPLEMENTATION MATTEO -----
+        # next_action = self.target_actor.forward(next_state)
+        # next_input = T.hstack((next_state, next_action))
+        # next_q = self.gamma * self.target_critic.forward(next_input)
+        # target = rewards.unsqueeze(1) + next_q * (1 - dones.unsqueeze(1))
+        ## ----- FIN IMPLEMENTATION MATTEO -----
 
         critic_loss = F.smooth_l1_loss(Q_values, target)
         # Calculate the loss using mean squared error (MSE) between Q-values and target Q-values
@@ -89,6 +105,9 @@ class DDPG:
         actor_loss.backward()  # Perform backpropagation
         T.nn.utils.clip_grad_value_(self.actor.parameters(), 100)
         self.actor.optimizer.step()
+
+        # Update target networks voir dernière fonction ligne 157
+        self.update_target_networks()
 
         return critic_loss.item(), actor_loss.item()
 
@@ -131,6 +150,12 @@ class DDPG:
         writer.close()
         return scores
 
+    # Update target networks : 
+    def update_target_networks(self):
+        for target_param, param in zip(self.target_actor.parameters(), self.actor.parameters()):
+            target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
+        for target_param, param in zip(self.target_critic.parameters(), self.critic.parameters()):
+            target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
 
 if __name__ == "__main__":
     Dqn = DDPG(alpha_actor=0.001, alpha_critic=0.001, tau=0.005, env_name='InvertedDoublePendulum-v4', gamma=0.99)
