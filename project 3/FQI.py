@@ -31,12 +31,12 @@ class FIQ:
         self.Q = None
         self.emv_name = env_name
         self.env = gym.make(env_name)
-        self.Nbr_features = self.env.observation_space.shape
+        self.Nbr_features = self.env.observation_space.shape[0]
         self.Nbr_action = Nbr_action
         self.Action_space = self.env.action_space
         self.action_list = np.linspace(self.env.action_space.low[0], self.env.action_space.high[0], Nbr_action)
         self.gamma = gamma
-        self.memory = ReplayBuffer(10000, self.Nbr_features, self.Action_space.shape[0])
+        self.memory = ReplayBuffer(500000, self.Nbr_features, self.env.action_space.shape[0])
 
     def render(self, mode):
         self.env = gym.make(self.emv_name, render_mode=mode)
@@ -44,7 +44,7 @@ class FIQ:
     @staticmethod
     def sup_learning_tech(X, y, tech=0):
         if tech == 0:
-            return ExtraTreesRegressor(n_estimators=10).fit(X, y)  # We can change number of estimators, currently = 100
+            return ExtraTreesRegressor(n_estimators=20).fit(X, y)  # We can change number of estimators, currently = 100
         elif tech == 1:
             return MLPRegressor(hidden_layer_sizes=(10, 20, 20, 10), max_iter=800, activation='tanh').fit(X,y)  # Change the intern structure here
         else:
@@ -52,16 +52,14 @@ class FIQ:
             return 0
 
     def gen_traj(self, Nbr_episode):
-        self.trajectory = []
-
         for _ in range(Nbr_episode):
             state, _ = self.env.reset()
             while True:
                 action = self.env.action_space.sample()
-                next_state, reward, terminated, truncated, _= self.env.step(action)
+                next_state, reward, terminated, truncated, _ = self.env.step(action)
                 if terminated:
                     reward = -100
-                self.trajectory.append([state, action, reward, next_state])
+                self.memory.add(state, action, reward, next_state, terminated)
                 state = next_state
 
                 if terminated or truncated:
@@ -92,7 +90,7 @@ class FIQ:
                 frames.append(self.env.render())
             action = self.best_action(state)
             next_state, reward, terminated, truncated, _ = self.env.step([action])
-            self.trajectory.append([state, action, reward, next_state])
+            self.memory.add(state, action, reward, next_state, terminated)
             G += reward
             state = next_state
             step += 1
@@ -105,11 +103,11 @@ class FIQ:
             self.Q = None
         X = []
         y = []
-        for traj in self.trajectory:
-            s_i = traj[0]
-            u_i = traj[1]
-            r_i = traj[2]
-            s_next_i = traj[3]
+        for i in range(min(self.memory.used_size, self.memory.buffer_size)):
+            s_i = self.memory.state_buffer[i]
+            u_i = self.memory.action_buffer[i]
+            r_i = self.memory.reward_buffer[i]
+            s_next_i = self.memory.next_state_buffer[i]
 
             x = np.append(s_i, u_i)
             X.append(x)
@@ -148,7 +146,7 @@ class FIQ:
 
 
 if __name__ == "__main__":
-    fqi = FIQ('InvertedPendulum-v4', 2)
+    fqi = FIQ('InvertedDoublePendulum-v4', 5)
     G_array = []
     fqi.gen_traj(50)
     fqi.fitted_Q(1, 0)
