@@ -35,9 +35,11 @@ class DDPG:
         self.critic = Network(self.alpha_critic, self.Nbr_features + self.Nbr_action, hidden_size, 1, name='Critic')
 
         # Implementing target networks
-        self.target_actor = Network(self.alpha_actor, self.Nbr_features, hidden_size, self.Nbr_action, name='TargetActor')
-        self.target_critic = Network(self.alpha_critic, self.Nbr_features + self.Nbr_action, hidden_size, 1, name='TargetCritic')
-        
+        self.target_actor = Network(self.alpha_actor, self.Nbr_features, hidden_size, self.Nbr_action,
+                                    name='TargetActor')
+        self.target_critic = Network(self.alpha_critic, self.Nbr_features + self.Nbr_action, hidden_size, 1,
+                                     name='TargetCritic')
+
         # Initialize target networks with the same weights as the original networks
         self.target_actor.load_state_dict(self.actor.state_dict())
         self.target_critic.load_state_dict(self.critic.state_dict())
@@ -79,31 +81,31 @@ class DDPG:
         Q_values = self.critic.forward(T.hstack((states, actions)))
         # Calculate the target Q-values using immediate rewards and discounted maximum Q-value of next states
         # MATTEO : faux je crois, il faut utiliser les target networks
-        next_action = self.actor.forward(next_state) 
+        next_action = self.actor.forward(next_state)
         next_input = T.hstack((next_state, next_action))
         next_q = self.gamma * self.critic.forward(next_input)
         target = rewards.unsqueeze(1) + next_q * (1 - dones.unsqueeze(1))
         target = target
-         
-        ## ----- IMPLEMENTATION MATTEO -----
-        # next_action = self.target_actor.forward(next_state)
-        # next_input = T.hstack((next_state, next_action))
-        # next_q = self.gamma * self.target_critic.forward(next_input)
-        # target = rewards.unsqueeze(1) + next_q * (1 - dones.unsqueeze(1))
-        ## ----- FIN IMPLEMENTATION MATTEO -----
+
+        # ----- IMPLEMENTATION MATTEO -----
+        next_action = self.target_actor.forward(next_state)
+        next_input = T.hstack((next_state, next_action))
+        next_q = self.gamma * self.target_critic.forward(next_input)
+        target = rewards.unsqueeze(1) + next_q * (1 - dones.unsqueeze(1))
+        # ----- FIN IMPLEMENTATION MATTEO -----
 
         critic_loss = F.smooth_l1_loss(Q_values, target)
         # Calculate the loss using mean squared error (MSE) between Q-values and target Q-values
         self.critic.optimizer.zero_grad()
         critic_loss.backward()  # Perform backpropagation
-        T.nn.utils.clip_grad_value_(self.critic.parameters(), 100)
+        T.nn.utils.clip_grad_value_(self.critic.parameters(), 10)
         self.critic.optimizer.step()
 
         # Update the actor policy using the sampled policy gradient
         actor_loss = -self.critic.forward(T.hstack((states, self.actor.forward(states)))).mean()
         self.actor.optimizer.zero_grad()
         actor_loss.backward()  # Perform backpropagation
-        T.nn.utils.clip_grad_value_(self.actor.parameters(), 100)
+        T.nn.utils.clip_grad_value_(self.actor.parameters(), 10)
         self.actor.optimizer.step()
 
         # Update target networks voir dernière fonction ligne 157
@@ -152,11 +154,26 @@ class DDPG:
 
     # Update target networks : 
     def update_target_networks(self):
-        for target_param, param in zip(self.target_actor.parameters(), self.actor.parameters()):
-            target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
-        for target_param, param in zip(self.target_critic.parameters(), self.critic.parameters()):
-            target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
+        """Updates the weights of the target Q-network by copying the weights
+        of the main Q-network using the specified tau value.
+        """
+        actor_dict = self.actor.state_dict()
+        actor_target_dict = self.target_actor.state_dict()
+
+        critic_dict = self.critic.state_dict()
+        critic_target_dict = self.target_critic.state_dict()
+
+        for key in actor_dict:
+            actor_target_dict[key] = actor_dict[key] * self.tau + actor_target_dict[key] * (1 - self.tau)
+        self.target_actor.load_state_dict(actor_target_dict)
+
+        for key in critic_dict:
+            critic_target_dict[key] = critic_dict[key] * self.tau + critic_target_dict[key] * (1 - self.tau)
+        self.target_critic.load_state_dict(critic_target_dict)
+
+
+
 
 if __name__ == "__main__":
-    Dqn = DDPG(alpha_actor=0.001, alpha_critic=0.001, tau=0.005, env_name='InvertedDoublePendulum-v4', gamma=0.99)
-    Dqn.train(1000)
+    Dqn = DDPG(alpha_actor=0.001, alpha_critic=0.001, tau=0.001, env_name='InvertedDoublePendulum-v4', gamma=0.99)
+    Dqn.train(10000)

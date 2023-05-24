@@ -169,9 +169,6 @@ class DQN:
         """Updates the weights of the target Q-network by copying the weights
         of the main Q-network using the specified tau value.
         """
-        self.Q_target.named_parameters()
-        self.Q.named_parameters()
-
         Q_dict = self.Q.state_dict()
         Q_target_dict = self.Q_target.state_dict()
 
