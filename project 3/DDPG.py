@@ -175,5 +175,5 @@ class DDPG:
 
 
 if __name__ == "__main__":
-    Dqn = DDPG(alpha_actor=0.001, alpha_critic=0.001, tau=0.001, env_name='InvertedDoublePendulum-v4', gamma=0.99)
+    Dqn = DDPG(alpha_actor=0.0001, alpha_critic=0.001, tau=0.001, env_name='InvertedDoublePendulum-v4', gamma=0.99)
     Dqn.train(10000)
