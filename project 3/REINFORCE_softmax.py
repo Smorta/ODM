@@ -4,12 +4,12 @@ import numpy as np
 import gymnasium as gym
 from tqdm import tqdm
 
-EPOCHS = 20000
+EPOCHS = 10000
 ALPHA = 0.001
 GAMMA = 0.99
 #DISC_STEP = [2, 5, 10, 20]
 
-def make_trajectory(env, theta, size=1000):
+def make_trajectory(env, theta, size=200):
     trajectory = []
     grad_log_pi = []
     rewards = []
@@ -46,10 +46,10 @@ def policy_grad(policy):
 
 
 hyp_tune = []
-for DISC_STEP in [9]:
+for DISC_STEP in [3]:
     env = gym.make("InvertedPendulum-v4", render_mode= None)
 
-    theta = np.random.rand(4, DISC_STEP)
+    theta = np.random.rand(4, 9)
     len_trajectory = []
 
     for i in tqdm(range(EPOCHS)):
@@ -67,16 +67,17 @@ for DISC_STEP in [9]:
 
 plt.figure()
 plt.plot(hyp_tune[0], label='Custom discretization')
+# plt.plot(hyp_tune[0], label='3')
 # plt.plot(hyp_tune[1], label='5')
 # plt.plot(hyp_tune[2], label='7')
 # plt.plot(hyp_tune[3], label='9')
 # plt.plot(hyp_tune[4], label='12')
 plt.grid()
-plt.xlabel('Epochs', fontsize=16)
-plt.ylabel('Mean Trajectory Length', fontsize=16)
+plt.xlabel('epoch')
+plt.ylabel('Mean Trajectory Length')
 plt.text(0.9, -0.1, "x100", transform=plt.gca().transAxes, fontsize=10)
 plt.legend()
-plt.savefig('REINFORCE_softmax_disc-cust2.png')
+plt.savefig('REINFORCE_softmax_disc-cust.png')
 plt.show()
 
     
