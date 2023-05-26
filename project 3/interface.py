@@ -56,7 +56,7 @@ if __name__ == "__main__":
         print("Total step: ", step)
 
     elif algo == 'softmax_simple':
-        theta = np.load("theta_simple_pendulum.npy")
+        theta = np.load("theta_simple_pendulum_30000.npy")
         env = gym.make("InvertedPendulum-v4", render_mode="human")
         s = env.reset()[0]
 
@@ -76,12 +76,13 @@ if __name__ == "__main__":
         print("Total step: ", step)
 
     elif algo == 'softmax_double':
-        theta = np.load("theta_double_pendulum.npy")
+        theta = np.load("theta_double_pendulum_30000.npy")
         env = gym.make("InvertedDoublePendulum-v4", render_mode="human")
         s = env.reset()[0]
 
         step = 0
         G = 0
+        print(theta)
         while True: 
             pi = policy(s, theta)
             actions = np.linspace(-3, 3, 9)
