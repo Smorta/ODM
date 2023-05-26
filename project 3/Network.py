@@ -14,7 +14,7 @@ class Network(nn.Module):
         self.output_size = output_size
         self.name = name
         self.checkpoint_dir = chkpt_dir
-        self.checkpoint_file = os.path.join(self.checkpoint_dir, name + '_dqn')
+        self.checkpoint_file = os.path.join(self.checkpoint_dir, name)
 
         self.fc1 = nn.Linear(self.input_size, self.hidden_size*2)
         self.fc2 = nn.Linear(self.hidden_size*2, self.hidden_size)
