@@ -10,4 +10,4 @@ The DDPG method is implemented in the file `DDPG.py` and depends of `Network.py`
 #### DQN
 The DDPG method is implemented in the file `DDPG.py` and depends of `utils.py`
 #### Softmax 
-To launch the softmax algorithm in `interface.py`, just type "0 softmax_simple 0 0 False" or "0 softmax_double 0 0 False" for respectively the simple and double pendulum
+To launch the softmax algorithm in `interface.py`, just type `0 softmax_simple 0 0 False` or `0 softmax_double 0 0 False` for respectively the simple and double pendulum
