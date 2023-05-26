@@ -37,10 +37,11 @@ class Network(nn.Module):
 
     def save_checkpoint(self):
         print('... saving checkpoint ...')
+        os.makedirs(os.path.dirname(self.checkpoint_file), exist_ok=True)
         T.save(self.state_dict(), self.checkpoint_file)
 
-    def load_checkpoint(self):
+    def load_checkpoint(self, path):
         print('... loading checkpoint ...')
-        self.load_state_dict(T.load(self.checkpoint_file))
+        self.load_state_dict(T.load(path))
 
 

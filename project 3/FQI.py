@@ -113,7 +113,7 @@ class FQI:
                 reward = -100
             self.memory.add(state, action, reward, next_state, terminated)
             state = next_state
-            G += reward
+            G = reward + self.gamma * G
             step += 1
             if early_stop is not None and step >= early_stop:
                 break
@@ -221,7 +221,7 @@ if __name__ == "__main__":
         G_array = []
         N = 1
         solved = False
-        solve = 5
+        solve = 10
         while not solved:
             start_time = time.time()
             fqi.fitted_Q(N, 0)
@@ -234,7 +234,7 @@ if __name__ == "__main__":
             if G[2] >= early_stop:
                 solve -= 1
             else:
-                solve = 3
+                solve = 10
                 solved = False
             if solve == 0 or total_duration / 60 > capTime:
                 solved = True

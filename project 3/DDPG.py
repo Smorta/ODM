@@ -5,6 +5,7 @@ from Network import Network
 import numpy as np
 from tqdm import tqdm
 import gymnasium as gym
+import time
 import os
 
 from torch.utils.tensorboard import SummaryWriter
@@ -16,7 +17,7 @@ import torch.optim as optim
 
 class DDPG:
     def __init__(self, alpha_actor, alpha_critic, tau=0.01, env_name='Pendulum-v1', gamma=0.99,
-                 max_size=100000, batch_size=64, hidden_size=128):
+                 max_size=100000, batch_size=64, hidden_size=128, name='model'):
         self.alpha_actor = alpha_actor
         self.alpha_critic = alpha_critic
         self.tau = tau
@@ -25,20 +26,23 @@ class DDPG:
         self.batch_size = batch_size
         self.env = gym.make(env_name)
         self.env_name = env_name
+        self.hidden_size = hidden_size
         self.observation_space = self.env.observation_space
         self.Nbr_features = self.env.observation_space.shape[0]
         self.Nbr_action = self.env.action_space.shape[0]
         self.action_space = self.env.action_space
         self.noise = utils.OUNoise(np.zeros(self.Nbr_action))
         self.memory = utils.ReplayBuffer(self.max_size, self.Nbr_features, self.Nbr_action)
-        self.actor = Network(self.alpha_actor, self.Nbr_features, hidden_size, self.Nbr_action, name='Actor')
-        self.critic = Network(self.alpha_critic, self.Nbr_features + self.Nbr_action, hidden_size, 1, name='Critic')
+        self.actor = Network(self.alpha_actor, self.Nbr_features, hidden_size, self.Nbr_action,
+                             name=self.env_name+name+'Actor_net', chkpt_dir='./DDPG')
+        self.critic = Network(self.alpha_critic, self.Nbr_features + self.Nbr_action, hidden_size, 1,
+                              name=self.env_name+name+'Critic_net', chkpt_dir='./DDPG')
 
         # Implementing target networks
         self.target_actor = Network(self.alpha_actor, self.Nbr_features, hidden_size, self.Nbr_action,
-                                    name='TargetActor')
+                                    name=self.env_name + '_TargetActor', chkpt_dir='./DDPG')
         self.target_critic = Network(self.alpha_critic, self.Nbr_features + self.Nbr_action, hidden_size, 1,
-                                     name='TargetCritic')
+                                     name=self.env_name + 'TargetCritic', chkpt_dir='./DDPG')
 
         # Initialize target networks with the same weights as the original networks
         self.target_actor.load_state_dict(self.actor.state_dict())
@@ -48,9 +52,13 @@ class DDPG:
         self.actor.save_checkpoint()
         self.critic.save_checkpoint()
 
-    def load_models(self):
-        self.actor.load_checkpoint()
-        self.critic.load_checkpoint()
+    def load_models(self, actor_path, critic_path):
+        self.actor.load_checkpoint(actor_path)
+        self.critic.load_checkpoint(critic_path)
+        self.target_actor = Network(self.alpha_actor, self.Nbr_features, self.hidden_size, self.Nbr_action,
+                                    name='TargetActor')
+        self.target_critic = Network(self.alpha_critic, self.Nbr_features + self.Nbr_action, self.hidden_size, 1,
+                                     name='TargetCritic')
 
     def render(self, mode):
         self.env = gym.make(self.env_name, render_mode=mode)
@@ -80,19 +88,21 @@ class DDPG:
 
         Q_values = self.critic.forward(T.hstack((states, actions)))
         # Calculate the target Q-values using immediate rewards and discounted maximum Q-value of next states
-        # MATTEO : faux je crois, il faut utiliser les target networks
-        next_action = self.actor.forward(next_state)
-        next_input = T.hstack((next_state, next_action))
-        next_q = self.gamma * self.critic.forward(next_input)
-        target = rewards.unsqueeze(1) + next_q * (1 - dones.unsqueeze(1))
-        target = target
 
-        # ----- IMPLEMENTATION MATTEO -----
+        # ----- IMPLEMENTATION WITHOUT TARGET-----
+        # next_action = self.actor.forward(next_state)
+        # next_input = T.hstack((next_state, next_action))
+        # next_q = self.gamma * self.critic.forward(next_input)
+        # target = rewards.unsqueeze(1) + next_q * (1 - dones.unsqueeze(1))
+        # target = target
+        # ----- FIN IMPLEMENTATION WITHOUT TARGET -----
+
+        # ----- IMPLEMENTATION TARGET-----
         next_action = self.target_actor.forward(next_state)
         next_input = T.hstack((next_state, next_action))
         next_q = self.gamma * self.target_critic.forward(next_input)
         target = rewards.unsqueeze(1) + next_q * (1 - dones.unsqueeze(1))
-        # ----- FIN IMPLEMENTATION MATTEO -----
+        # ----- FIN IMPLEMENTATION TARGET -----
 
         critic_loss = F.smooth_l1_loss(Q_values, target)
         # Calculate the loss using mean squared error (MSE) between Q-values and target Q-values
@@ -113,7 +123,7 @@ class DDPG:
 
         return critic_loss.item(), actor_loss.item()
 
-    def do_episode(self):
+    def do_episode(self, early_stop=200):
         observation, _ = self.env.reset()
         score = 0
         step = 0
@@ -134,21 +144,39 @@ class DDPG:
             if loss is not None:
                 mean_critic_loss += loss[0]
                 mean_actor_loss += loss[1]
-            if terminated or truncated:
+            if terminated or truncated or step > early_stop:
                 break
         return score, step, mean_critic_loss / step, mean_actor_loss / step
 
-    def train(self, n_episodes=100):
+    def train(self, early_stop=200, capTime=30):
+        total_duration = 0
         writer = SummaryWriter(comment='_' + self.env_name + '_DDPG')
         scores = []
-        for epoch in tqdm(range(n_episodes)):
-            score, step, critic_loss, actor_loss = self.do_episode()
+        epoch = 0
+        solved = False
+        solve = 3
+        while not solved:
+            start_time = time.time()
+            score, step, critic_loss, actor_loss = self.do_episode(early_stop)
             scores.append(score)
+            duration = time.time() - start_time
+            total_duration += duration
             if critic_loss is not None:
                 writer.add_scalar("CriticLoss/train", critic_loss, epoch)
                 writer.add_scalar("ActorLoss/train", actor_loss, epoch)
             writer.add_scalar("score/train", score, epoch)
             writer.add_scalar("step/train", step, epoch)
+            if epoch % 10 == 0:
+                print('epoch:', epoch, '; mean_performance: ', step, '; duration:', str(round(duration, 2)) + "s",
+                      '(time elapse :' + str(round(total_duration / 60, 2)) + ' min)')
+            if step >= early_stop:
+                solve -= 1
+            else:
+                solve = 3
+                solved = False
+            if solve == 0 or total_duration / 60 > capTime:
+                solved = True
+            epoch += 1
         writer.close()
         return scores
 
@@ -172,8 +200,10 @@ class DDPG:
         self.target_critic.load_state_dict(critic_target_dict)
 
 
-
-
 if __name__ == "__main__":
-    Dqn = DDPG(alpha_actor=0.0001, alpha_critic=0.001, tau=0.001, env_name='InvertedDoublePendulum-v4', gamma=0.99)
-    Dqn.train(10000)
+    ddpg = DDPG(alpha_actor=0.0001, alpha_critic=0.001, tau=0.001, env_name='InvertedPendulum-v4', gamma=0.99)
+    ddpg.train(200, 60)
+    ddpg.save_models()
+    # actor_path = './DDPG/modelActor_net_dqn'
+    # critic_path = './DDPG/modelCritic_net_dqn'
+    # ddpg.load_models(actor_path, critic_path)
