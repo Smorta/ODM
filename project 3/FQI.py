@@ -221,7 +221,7 @@ if __name__ == "__main__":
         G_array = []
         N = 1
         solved = False
-        solve = 10
+        solve = 3
         while not solved:
             start_time = time.time()
             fqi.fitted_Q(N, 0)
@@ -234,7 +234,7 @@ if __name__ == "__main__":
             if G[2] >= early_stop:
                 solve -= 1
             else:
-                solve = 10
+                solve = 3
                 solved = False
             if solve == 0 or total_duration / 60 > capTime:
                 solved = True
