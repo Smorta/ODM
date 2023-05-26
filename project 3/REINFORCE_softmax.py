@@ -42,22 +42,22 @@ def policy_grad(policy):
     temp = policy.reshape(-1,1)
     return np.diagflat(temp) - np.dot(temp, temp.T)
 
+if __name__ == "__main__":
+    hyp_tune = []
+    for DISC_STEP in [5]:
+        env = gym.make("InvertedPendulum-v4", render_mode= None)
 
-hyp_tune = []
-for DISC_STEP in [5]:
-    env = gym.make("InvertedPendulum-v4", render_mode= None)
+        theta = np.random.rand(4, DISC_STEP)
+        len_trajectory = []
 
-    theta = np.random.rand(4, DISC_STEP)
-    len_trajectory = []
+        for i in tqdm(range(EPOCHS)):
+            trajectory, grad_log_pi, rewards = make_trajectory(env, theta)
+            len_trajectory.append(len(trajectory))
 
-    for i in tqdm(range(EPOCHS)):
-        trajectory, grad_log_pi, rewards = make_trajectory(env, theta)
-        len_trajectory.append(len(trajectory))
-
-        for t in range(len(trajectory)):
-            theta = theta + ALPHA * grad_log_pi[t] * sum([ r * (GAMMA ** k) for k,r in enumerate(rewards[t:])])
-    
-    np.save('theta_simple_pendulum_30000.npy', theta) 
+            for t in range(len(trajectory)):
+                theta = theta + ALPHA * grad_log_pi[t] * sum([ r * (GAMMA ** k) for k,r in enumerate(rewards[t:])])
+        
+        np.save('theta_simple_pendulum_30000.npy', theta) 
 
 
     # len_trajectory = np.array(len_trajectory)
