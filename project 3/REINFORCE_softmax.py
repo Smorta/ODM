@@ -4,7 +4,7 @@ import numpy as np
 import gymnasium as gym
 from tqdm import tqdm
 
-EPOCHS = 10000
+EPOCHS = 100000
 ALPHA = 0.001
 GAMMA = 0.99
 
@@ -57,7 +57,7 @@ for DISC_STEP in [5]:
         for t in range(len(trajectory)):
             theta = theta + ALPHA * grad_log_pi[t] * sum([ r * (GAMMA ** k) for k,r in enumerate(rewards[t:])])
     
-    np.save('theta_simple_pendulum.npy', theta) 
+    np.save('theta_simple_pendulum_100000.npy', theta) 
 
 
     # len_trajectory = np.array(len_trajectory)
